@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 
@@ -23,6 +23,19 @@ class Settings(BaseSettings):
         default="postgresql+asyncpg://helpdesk:helpdesk@localhost:5432/helpdesk",
         validation_alias="DATABASE_URL",
     )
+
+    @field_validator("admin_database_url")
+    @classmethod
+    def _force_asyncpg_driver(cls, v: str) -> str:
+        """Railway (and Heroku-style envs) hand out DATABASE_URL as a plain
+        postgres:// or postgresql:// string. Without a driver suffix,
+        SQLAlchemy defaults to the sync psycopg2 driver — which isn't even
+        installed here — instead of asyncpg. Force it explicitly."""
+        if v.startswith("postgres://"):
+            v = "postgresql://" + v[len("postgres://") :]
+        if v.startswith("postgresql://"):
+            v = "postgresql+asyncpg://" + v[len("postgresql://") :]
+        return v
     # Password for the app_runtime role. Same value must be used when the
     # migration creates/updates the role (see migrations) and here to build
     # the runtime connection string.
