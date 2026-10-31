@@ -3,12 +3,15 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     JSON,
     BigInteger,
     Boolean,
+    Computed,
     ForeignKey,
     Identity,
+    Index,
     Integer,
     Numeric,
     Text,
@@ -17,10 +20,12 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+
+EMBEDDING_DIMENSIONS = 1536  # text-embedding-3-small; changing it needs a migration
 
 
 def _uuid_pk() -> Mapped[uuid.UUID]:
@@ -392,6 +397,51 @@ class AuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
+class KbArticle(Base):
+    """A help article a tenant's support team wrote. The agent answers from these, not from memory."""
+
+    __tablename__ = "kb_articles"
+    __table_args__ = (UniqueConstraint("tenant_id", "title", name="uq_kb_articles_title"),)
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    # sha256 of (embedding model, title, body): re-saving identical content does not pay to re-embed.
+    content_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("employees.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+
+
+class KbChunk(Base):
+    """One passage of an article with its embedding and a full-text vector (hybrid search)."""
+
+    __tablename__ = "kb_chunks"
+    __table_args__ = (Index("ix_kb_chunks_tsv", "tsv", postgresql_using="gin"),)
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    article_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("kb_articles.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    # Which model produced `embedding`. Search only compares vectors from the same model.
+    embedding_model: Mapped[str] = mapped_column(Text, nullable=False)
+    embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIMENSIONS), nullable=False)
+    tsv: Mapped[str] = mapped_column(
+        TSVECTOR, Computed("to_tsvector('english', content)", persisted=True), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
 TENANT_SCOPED_TABLES = [
     Employee.__tablename__,
     System.__tablename__,
@@ -406,4 +456,6 @@ TENANT_SCOPED_TABLES = [
     IdempotencyKey.__tablename__,
     Approval.__tablename__,
     AuditLog.__tablename__,
+    KbArticle.__tablename__,
+    KbChunk.__tablename__,
 ]

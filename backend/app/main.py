@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import console, conversations, health, tenants
+from app.api.routes import console, conversations, health, kb, tenants
 from app.config import get_settings
 
 
@@ -21,6 +21,7 @@ def create_app() -> FastAPI:
     app.include_router(tenants.router, prefix="/api")
     app.include_router(conversations.router, prefix="/api")
     app.include_router(console.router, prefix="/api")
+    app.include_router(kb.router, prefix="/api")
 
     return app
 

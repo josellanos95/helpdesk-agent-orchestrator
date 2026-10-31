@@ -13,6 +13,7 @@ from sqlalchemy import delete
 
 from app.config import get_settings
 from app.db.models import (
+    EMBEDDING_DIMENSIONS,
     AgentRun,
     AgentStep,
     Approval,
@@ -22,6 +23,8 @@ from app.db.models import (
     Employee,
     Escalation,
     IdempotencyKey,
+    KbArticle,
+    KbChunk,
     Message,
     MessageRole,
     System,
@@ -170,6 +173,21 @@ async def _create_tenant_with_rows(session, label: str) -> TenantData:
         )
     )
     session.add(AuditLog(tenant_id=tenant.id, actor_type="system", action="fixture", subject="x"))
+    article = KbArticle(
+        tenant_id=tenant.id, title=f"Fixture article {label}", body="Fixture body.", content_hash="fixture"
+    )
+    session.add(article)
+    await session.flush()
+    session.add(
+        KbChunk(
+            tenant_id=tenant.id,
+            article_id=article.id,
+            chunk_index=0,
+            content="Fixture passage.",
+            embedding_model="fixture",
+            embedding=[1.0] + [0.0] * (EMBEDDING_DIMENSIONS - 1),
+        )
+    )
     await session.flush()
     return TenantData(
         id=tenant.id, ticket_id=ticket.id, employee_id=employee.id, conversation_id=conversation.id

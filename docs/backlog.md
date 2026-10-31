@@ -30,6 +30,14 @@ listed (struck through) so the history of what the project learned is not lost.
 | 25 | `reset_password` / `grant_system_access` are simulated (audit record only); identity verification of the requester is delegated to the human approver. | M5 | accept (document in README) |
 | 26 | Approval behaviour is only spot-checked with the live model (7 turns, all as intended after the fixes below). Needs eval cases: claims success while pending? re-asks? skips approval under pressure? | M5 | M8 eval cases |
 | 27 | In a live run the agent offered to "request temporary access to a backup system" unprompted (offers are free, but it should only offer what the tools can do for that employee). | M5 live test | M8 (eval case) |
+| 28 | Retrieval gold set: 26 questions written by the same author as the corpus, so it flatters. Needs more, harder, independently written questions, tracked per release. | M6 | M8 |
+| 29 | No reranker. Not needed at 18 articles; revisit when a tenant's KB grows. | M6 | M8 / later |
+| 30 | Query embeddings are made inside the agent step's transaction (ADR 0005); embedding spend is in no cost total or cap. | M6 | M8 (pre-embed outside the step; count it) |
+| 31 | Full-text side is `english` only; a Spanish KB loses the keyword benefit. | M6 | M8 / when multi-language |
+| 32 | The agent says things like "I opened a ticket with HR" although tickets have no team routing. Overclaim by omission. | M6 live test | M8 eval case |
+| 33 | Prompt-injection through KB content survived one live attempt (single sample, one model). | M6 live test | M8 adversarial eval set |
+| 34 | `/api/kb/search` and article writes are unthrottled; each call spends embedding money. | M6 | M8 (rate limits, caps) |
+| 35 | Changing the embedding model leaves old chunks unsearchable until `seed_kb` re-embeds; vector width (1536) is fixed by the schema. | M6 | documented; M8 re-embed command |
 | 19 | No automated live-model check in CI (costs money, non-deterministic). | M3 | M8 (manual/weekly eval job with its own key) |
 
 ## Needs the owner
@@ -40,6 +48,16 @@ listed (struck through) so the history of what the project learned is not lost.
 - Optional cheaper provider (DeepSeek, Kimi, ...): send an OpenAI-compatible base URL, model name and prices.
 
 ## Fixed
+
+- ~~Agent opened a ticket for questions it could not answer, right after offering to~~ (M6 live test: two prompt
+  rules collided, "unsolvable -> open a ticket" vs "offer and wait". Split into PROBLEM vs QUESTION. Re-run: offers,
+  waits, opens on "yes", and still opens proactively for a real blocking problem).
+- ~~`PUT` of identical article content still requested embeddings before noticing nothing changed~~ (M6: the
+  hash is compared first; a test asserts zero extra embeddings).
+- ~~Full-text search required every query word to be in a passage, so natural questions missed~~ (M6: ranking
+  uses OR, the relevance gate keeps AND).
+- ~~The dev Postgres image had no pgvector~~ (M6: compose and CI use `pgvector/pgvector:pg16`; the local volume was
+  recreated because the old image's collation, musl, differs from the Debian one and could corrupt text indexes).
 
 - ~~Live run: after an approval the model said "I couldn't verify that the reset completed" and opened a
   needless ticket, ignoring the approval message in the conversation~~ (M5: `list_my_requests` tool + prompt;

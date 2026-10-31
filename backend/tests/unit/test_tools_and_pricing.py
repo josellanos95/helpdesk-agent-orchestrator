@@ -56,6 +56,7 @@ def test_exactly_the_sensitive_tools_require_approval():
             "list_my_tickets",
             "escalate_to_human",
             "list_my_requests",
+            "search_knowledge_base",
             "reset_password",
             "grant_system_access",
         )
@@ -72,6 +73,7 @@ def test_every_registered_tool_is_accounted_for_above():
         "list_my_tickets",
         "escalate_to_human",
         "list_my_requests",
+        "search_knowledge_base",
         "reset_password",
         "grant_system_access",
     }
