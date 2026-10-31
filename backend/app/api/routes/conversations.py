@@ -2,17 +2,22 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Response
 from pydantic import BaseModel, Field
+from redis.asyncio import Redis
+from redis.exceptions import RedisError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.runner import run_agent
 from app.agent.tools import ToolRegistry, default_registry
-from app.api.deps import get_db, get_llm, get_tenant_id
+from app.api.deps import get_db, get_llm, get_redis, get_tenant_id
 from app.config import get_settings
 from app.db.models import AgentRun, AgentRunStatus, AgentStep, Conversation, Employee, Message, MessageRole
+from app.db.session import tenant_session
 from app.llm.base import LLMClient
+from app.services import idempotency
+from app.services.locks import ConversationBusy, LockLost, conversation_lock
 
 router = APIRouter()
 
@@ -133,24 +138,62 @@ async def list_messages(conversation_id: uuid.UUID, session: AsyncSession = Depe
 async def send_message(
     conversation_id: uuid.UUID,
     body: MessageIn,
-    session: AsyncSession = Depends(get_db),
+    response: Response,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     llm: LLMClient = Depends(get_llm),
     registry: ToolRegistry = Depends(get_registry),
+    redis: Redis = Depends(get_redis),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key", min_length=1, max_length=200),
 ) -> ReplyOut:
-    conversation = await _conversation_or_404(session, conversation_id)
-    employee = await session.get(Employee, conversation.employee_id)
-    result = await run_agent(
-        session=session,
-        llm=llm,
-        registry=registry,
-        tenant_id=tenant_id,
-        conversation_id=conversation_id,
-        employee=employee,
-        user_text=body.content,
-        max_steps=get_settings().agent_max_steps,
-    )
-    return ReplyOut(
+    # Short transactions on purpose: nothing below holds a database transaction while the model thinks.
+    async with tenant_session(tenant_id) as session:
+        conversation = await _conversation_or_404(session, conversation_id)
+        employee_id = conversation.employee_id
+
+    claimed = False
+    if idempotency_key:
+        req_hash = idempotency.request_hash(conversation_id, body.content)
+        async with tenant_session(tenant_id) as session:
+            claim = await idempotency.claim(session, tenant_id, idempotency_key, req_hash)
+        if claim.outcome == "replay":
+            response.headers["Idempotent-Replay"] = "true"
+            return ReplyOut.model_validate(claim.response)
+        if claim.outcome == "mismatch":
+            raise HTTPException(422, "This Idempotency-Key was already used with a different request.")
+        if claim.outcome == "in_progress":
+            raise HTTPException(409, "A request with this Idempotency-Key is still in progress.")
+        claimed = True
+
+    try:
+        async with conversation_lock(
+            redis, tenant_id, conversation_id, ttl_seconds=get_settings().conversation_lock_ttl_seconds
+        ) as lock:
+            result = await run_agent(
+                scope=lambda: tenant_session(tenant_id),
+                llm=llm,
+                registry=registry,
+                tenant_id=tenant_id,
+                conversation_id=conversation_id,
+                employee_id=employee_id,
+                user_text=body.content,
+                max_steps=get_settings().agent_max_steps,
+                heartbeat=lock.renew,
+            )
+    except ConversationBusy as exc:
+        await _release_claim(tenant_id, idempotency_key, claimed)
+        detail = "This conversation is already being processed. Try again in a moment."
+        raise HTTPException(409, detail) from exc
+    except RedisError as exc:
+        await _release_claim(tenant_id, idempotency_key, claimed)
+        raise HTTPException(503, "The coordination service (Redis) is unavailable.") from exc
+    except LockLost as exc:
+        await _release_claim(tenant_id, idempotency_key, claimed)
+        raise HTTPException(409, "The conversation lock was lost while processing. Try again.") from exc
+    except BaseException:
+        await _release_claim(tenant_id, idempotency_key, claimed)
+        raise
+
+    out = ReplyOut(
         reply=result.reply,
         run=RunSummary(
             run_id=result.run_id,
@@ -160,6 +203,20 @@ async def send_message(
             cost_usd=result.cost_usd,
         ),
     )
+    if claimed:
+        if result.status == AgentRunStatus.failed:
+            # A provider outage is worth retrying: free the key instead of replaying the failure forever.
+            await _release_claim(tenant_id, idempotency_key, claimed)
+        else:
+            async with tenant_session(tenant_id) as session:
+                await idempotency.complete(session, idempotency_key, out.model_dump(mode="json"))
+    return out
+
+
+async def _release_claim(tenant_id: uuid.UUID, key: str | None, claimed: bool) -> None:
+    if claimed and key:
+        async with tenant_session(tenant_id) as session:
+            await idempotency.release(session, key)
 
 
 @router.get("/runs/{run_id}", response_model=RunOut)

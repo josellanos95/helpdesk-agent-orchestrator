@@ -5,16 +5,19 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
+import redis.asyncio as redis
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import delete
 
+from app.config import get_settings
 from app.db.models import (
     AgentRun,
     AgentStep,
     Conversation,
     Employee,
     Escalation,
+    IdempotencyKey,
     Message,
     MessageRole,
     System,
@@ -22,6 +25,7 @@ from app.db.models import (
     Ticket,
     TicketCategory,
     TicketEvent,
+    ToolExecution,
 )
 from app.db.session import AdminSessionLocal, admin_engine, app_engine, tenant_scoped_session
 
@@ -88,6 +92,7 @@ class TenantData:
     id: uuid.UUID
     ticket_id: uuid.UUID
     employee_id: uuid.UUID
+    conversation_id: uuid.UUID
 
 
 @dataclass
@@ -135,8 +140,23 @@ async def _create_tenant_with_rows(session, label: str) -> TenantData:
     session.add(
         AgentStep(tenant_id=tenant.id, run_id=run.id, step_index=0, kind="llm", name="test-model")
     )
+    session.add(
+        ToolExecution(
+            tenant_id=tenant.id,
+            conversation_id=conversation.id,
+            tool_call_id="fixture-call",
+            tool_name="check_system_status",
+            arguments="{}",
+            result={},
+        )
+    )
+    session.add(
+        IdempotencyKey(tenant_id=tenant.id, key="fixture-key", request_hash="x", status="completed")
+    )
     await session.flush()
-    return TenantData(id=tenant.id, ticket_id=ticket.id, employee_id=employee.id)
+    return TenantData(
+        id=tenant.id, ticket_id=ticket.id, employee_id=employee.id, conversation_id=conversation.id
+    )
 
 
 @pytest.fixture
@@ -156,3 +176,13 @@ async def two_tenants() -> AsyncIterator[TwoTenants]:
         async with AdminSessionLocal() as session:
             await session.execute(delete(Tenant).where(Tenant.id.in_([a.id, b.id])))
             await session.commit()
+
+
+@pytest.fixture
+async def redis_client() -> AsyncIterator[redis.Redis]:
+    """A client for the test Redis database (15), emptied before and after each test."""
+    client = redis.Redis.from_url(get_settings().redis_url, decode_responses=True)
+    await client.flushdb()
+    yield client
+    await client.flushdb()
+    await client.aclose()

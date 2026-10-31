@@ -1,5 +1,6 @@
 """A scripted stand-in for the model, so the agent loop is tested without network or cost."""
 
+import asyncio
 import copy
 import itertools
 import json
@@ -45,3 +46,17 @@ class ScriptedLLM:
         if isinstance(item, Exception):
             raise item
         return item
+
+
+class GatedLLM(ScriptedLLM):
+    """Blocks inside `complete` until the test opens the gate, so a test can act while a run is in flight."""
+
+    def __init__(self, *responses: LLMResponse | Exception) -> None:
+        super().__init__(*responses)
+        self.entered = asyncio.Event()
+        self.gate = asyncio.Event()
+
+    async def complete(self, *, messages: list[dict], tools: list[dict]) -> LLMResponse:
+        self.entered.set()
+        await self.gate.wait()
+        return await super().complete(messages=messages, tools=tools)
