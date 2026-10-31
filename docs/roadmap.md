@@ -8,7 +8,7 @@
 | M3 | Agent core: tool-calling loop, persisted messages, per-run traces | done (live OpenAI smoke test pending) |
 | M4 | Short transactions, exactly-once tool calls, per-conversation lock, `Idempotency-Key` | done |
 | M5 | Human approvals for sensitive actions, escalation queue, audit log | done |
-| M6 | Per-tenant knowledge base with RAG (pgvector) | planned |
+| M6 | Per-tenant knowledge base: hybrid search (pgvector + full text), cited answers | done |
 | M7 | UI: chat, agent console, run inspector | planned |
 | M8 | Evals, guardrails, spend caps, demo authentication | planned |
 | M9 | Public deployment, README, ADRs, demo video | planned |

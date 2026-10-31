@@ -10,12 +10,18 @@ ignore = ["B008"]
 [tool.ruff.lint.per-file-ignores]
 # Alembic autogenerate output — not hand-formatted, not worth wrapping.
 "migrations/versions/*.py" = ["E501"]
+# Article text for the demo knowledge base: prose, not code.
+"scripts/kb_content.py" = ["E501"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
 pythonpath = ["."]
+filterwarnings = [
+    # Alembic notes it cannot diff a generated (Computed) column; the drift test still compares the rest.
+    "ignore:Computed default on:UserWarning",
+]
 markers = [
     "integration: needs a real Postgres (see tests/conftest.py)",
 ]

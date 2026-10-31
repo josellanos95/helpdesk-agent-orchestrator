@@ -6,6 +6,8 @@ from typing import Any
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.llm.embeddings import Embedder
+
 
 @dataclass(frozen=True)
 class ToolContext:
@@ -16,6 +18,8 @@ class ToolContext:
     tenant_id: uuid.UUID
     employee_id: uuid.UUID
     conversation_id: uuid.UUID
+    # Turns text into vectors for knowledge-base search; None when embeddings are not configured.
+    embedder: Embedder | None = None
 
 
 @dataclass(frozen=True)

@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.approvals import ApprovalError, decide
 from app.agent.tools import ToolRegistry, default_registry
-from app.api.deps import get_db, get_redis, get_tenant_id
+from app.api.deps import get_db, get_redis, get_tenant_id, support_agent_or_403
 from app.config import get_settings
 from app.db.models import (
     Approval,
@@ -200,18 +200,11 @@ async def list_escalations(
     return [await _escalation_out(session, e) for e in await session.scalars(query)]
 
 
-async def _support_agent_or_403(session: AsyncSession, employee_id: uuid.UUID) -> Employee:
-    agent = await session.get(Employee, employee_id)
-    if agent is None or not agent.is_support_agent:
-        raise HTTPException(403, "Only support agents can work the escalation queue.")
-    return agent
-
-
 async def _move_escalation(
     escalation_id: uuid.UUID, tenant_id: uuid.UUID, agent_id: uuid.UUID, target: EscalationStatus
 ) -> EscalationOut:
     async with tenant_session(tenant_id) as session:
-        agent = await _support_agent_or_403(session, agent_id)
+        agent = await support_agent_or_403(session, agent_id)
         escalation = await session.scalar(
             select(Escalation).where(Escalation.id == escalation_id).with_for_update()
         )

@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -46,6 +47,14 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-5-mini"
     # Any OpenAI-compatible endpoint (DeepSeek, Kimi, OpenRouter, a local server...). None = OpenAI.
     openai_base_url: str | None = None
+    # Embeddings are configured apart from chat: not every chat provider offers them. The vector
+    # column is 1536-wide, so the model must produce 1536 dims (text-embedding-3-small does).
+    embedding_provider: Literal["openai", "hashing"] = "openai"
+    embedding_model: str = "text-embedding-3-small"
+    embedding_api_key: str | None = None  # falls back to openai_api_key
+    embedding_base_url: str | None = None  # None = OpenAI (NOT openai_base_url)
+    # Below this cosine similarity (and with no keyword match) a passage is treated as unrelated.
+    kb_min_similarity: float = 0.3
     agent_max_steps: int = 6
     # Per-conversation lock; renewed before every model call, so it only has to outlive one step.
     conversation_lock_ttl_seconds: int = 120

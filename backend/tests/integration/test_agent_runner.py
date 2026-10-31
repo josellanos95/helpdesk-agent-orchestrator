@@ -105,6 +105,7 @@ async def test_system_prompt_names_the_tenant_and_the_employee(world, as_tenant)
         "list_my_tickets",
         "escalate_to_human",
         "list_my_requests",
+        "search_knowledge_base",
         "reset_password",
         "grant_system_access",
     }

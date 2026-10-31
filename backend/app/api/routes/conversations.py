@@ -11,11 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.runner import run_agent
 from app.agent.tools import ToolRegistry, default_registry
-from app.api.deps import get_db, get_llm, get_redis, get_tenant_id
+from app.api.deps import get_db, get_embedder, get_llm, get_redis, get_tenant_id
 from app.config import get_settings
 from app.db.models import AgentRun, AgentRunStatus, AgentStep, Conversation, Employee, Message, MessageRole
 from app.db.session import tenant_session
 from app.llm.base import LLMClient
+from app.llm.embeddings import Embedder
 from app.services import idempotency
 from app.services.locks import ConversationBusy, LockLost, conversation_lock
 
@@ -144,6 +145,7 @@ async def send_message(
     llm: LLMClient = Depends(get_llm),
     registry: ToolRegistry = Depends(get_registry),
     redis: Redis = Depends(get_redis),
+    embedder: Embedder | None = Depends(get_embedder),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key", min_length=1, max_length=200),
 ) -> ReplyOut:
     # Short transactions on purpose: nothing below holds a database transaction while the model thinks.
@@ -179,6 +181,7 @@ async def send_message(
                 user_text=body.content,
                 max_steps=get_settings().agent_max_steps,
                 heartbeat=lock.renew,
+                embedder=embedder,
             )
     except ConversationBusy as exc:
         await _release_claim(tenant_id, idempotency_key, claimed)

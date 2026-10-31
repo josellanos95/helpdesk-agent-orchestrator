@@ -31,6 +31,7 @@ from app.agent.runner_types import Heartbeat, SessionScope
 from app.agent.tools import ToolContext, ToolRegistry
 from app.db.models import AgentRun, AgentRunStatus, AgentStep, Employee, Message, MessageRole, Tenant
 from app.llm.base import LLMClient
+from app.llm.embeddings import Embedder
 from app.llm.pricing import cost_usd
 
 logger = logging.getLogger(__name__)
@@ -108,6 +109,7 @@ async def run_agent(
     user_text: str,
     max_steps: int = DEFAULT_MAX_STEPS,
     heartbeat: Heartbeat | None = None,
+    embedder: Embedder | None = None,
 ) -> AgentResult:
     async with scope() as session:
         tenant = await session.get(Tenant, tenant_id)  # the tenants table is not RLS-scoped
@@ -123,7 +125,7 @@ async def run_agent(
     try:
         status, reply = await _loop(
             scope, llm, registry, tenant_id, conversation_id, employee_id,
-            run_id, system_prompt, totals, max_steps, heartbeat,
+            run_id, system_prompt, totals, max_steps, heartbeat, embedder,
         )  # fmt: skip
         await _close_run(scope, run_id, totals, status)
     except Exception as exc:
@@ -157,6 +159,7 @@ async def _loop(
     totals: _Totals,
     max_steps: int,
     heartbeat: Heartbeat | None,
+    embedder: Embedder | None,
 ) -> tuple[AgentRunStatus, str]:
     for _ in range(max_steps):
         if heartbeat:
@@ -210,7 +213,11 @@ async def _loop(
                 return AgentRunStatus.completed, response.content or ""
 
             ctx = ToolContext(
-                session=session, tenant_id=tenant_id, employee_id=employee_id, conversation_id=conversation_id
+                session=session,
+                tenant_id=tenant_id,
+                employee_id=employee_id,
+                conversation_id=conversation_id,
+                embedder=embedder,
             )
             for call in response.tool_calls:
                 started = time.perf_counter()

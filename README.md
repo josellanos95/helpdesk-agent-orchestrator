@@ -16,7 +16,8 @@ Multi-tenant AI agent for IT helpdesk support — tool use / function calling, R
 | M3 | Agent core: tool-calling loop, persisted messages, per-run traces ([ADR 0002](docs/adr/0002-agent-loop.md)) | done, live OpenAI smoke test pending |
 | M4 | Short transactions, exactly-once tool calls, per-conversation lock, `Idempotency-Key` ([ADR 0003](docs/adr/0003-idempotency-locks-short-transactions.md)) | done |
 | M5 | Human approval of sensitive actions, escalation queue, audit log ([ADR 0004](docs/adr/0004-human-approvals-and-escalation.md)) | done |
-| M6+ | Knowledge base, UI, evals | planned |
+| M6 | Per-tenant knowledge base: hybrid search (pgvector + full text), cited answers ([ADR 0005](docs/adr/0005-knowledge-base-and-hybrid-search.md)) | done |
+| M7+ | UI, evals, deploy | planned |
 
 ## Local development
 
@@ -69,6 +70,29 @@ An environment variable beats `backend/.env`. If `OPENAI_API_KEY` is also set as
 (Windows: *Environment Variables*), editing the `.env` file changes nothing. `OPENAI_BASE_URL` points the client at
 any OpenAI-compatible provider.
 
+## Knowledge base
+
+The agent answers how-to questions from each company's own articles, cites the article, and says so when
+there is no documentation instead of improvising.
+
+```bash
+docker compose up -d          # Postgres now comes with pgvector
+cd backend
+python -m scripts.seed_kb               # embeds the demo articles (needs OPENAI_API_KEY)
+python -m scripts.seed_kb --offline     # free, lexical-only stand-in, for working without a key
+python -m scripts.eval_retrieval --verbose
+```
+
+Measured with `text-embedding-3-small` on 26 questions (20 answerable, 6 not, one asking a company about
+another's content): **hit@1 100%, hit@3 100%, 0 of 6 unanswerable questions returned noise** at the default
+`KB_MIN_SIMILARITY=0.30`. Small set, same author as the corpus: a calibration, not a guarantee (ADR 0005).
+
+| Route | |
+|---|---|
+| `GET /api/kb/articles`, `GET /api/kb/articles/{id}` | List / read |
+| `POST /api/kb/articles`, `PUT /api/kb/articles/{id}`, `DELETE /api/kb/articles/{id}?actor_id=` | Write (support agents only; identical content is not re-embedded) |
+| `POST /api/kb/search` | What the agent would be given for a question, with scores |
+
 ## Tests
 
 ```bash
@@ -76,7 +100,7 @@ cd backend
 pytest
 ```
 
-The suite needs Postgres and Redis (`docker compose up -d`). It talks to the real ones — Row Level Security is a database feature, so a mock would prove
+The suite needs Postgres and Redis (`docker compose up -d`; Postgres must have pgvector, which the compose image does). It talks to the real ones — Row Level Security is a database feature, so a mock would prove
 nothing. It uses a separate `<dbname>_test` database and Redis database 15 (created on demand from `DATABASE_URL`), never
 the development one. This is enforced, not just a convention: the harness points the app at the test
 services when `tests/conftest.py` is imported, and a session fixture aborts the run if any engine or setting
