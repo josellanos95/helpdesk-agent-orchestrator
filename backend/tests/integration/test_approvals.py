@@ -443,3 +443,52 @@ async def test_a_colleagues_ticket_in_the_same_tenant_cannot_be_escalated(
 
     assert "No such ticket" in result["error"]
     assert await stored(Escalation, ticket_id=colleague_ticket_id) == []
+
+
+# ------------------------------------------------------------ asking about a request's status
+
+
+async def my_requests(as_tenant, tenant, employee_id=None) -> dict[str, dict]:
+    """What the model sees when it calls list_my_requests, keyed by approval id (the two_tenants
+    fixture already gives every employee one pending approval, so tests look up their own)."""
+    conversation_id = await new_conversation(as_tenant, tenant, employee_id)
+    llm = ScriptedLLM(call("list_my_requests", {}), say("Here is the status."))
+    await run_turn(as_tenant, tenant, llm, "did it go through?", conversation_id, employee_id)
+    requests = json.loads(llm.calls[1]["messages"][-1]["content"])["requests"]
+    return {r["approval_id"]: r for r in requests}
+
+
+async def test_the_model_can_look_up_the_real_status_of_a_request(two_tenants, support_agents, as_tenant):
+    _, approval = await request_reset(as_tenant, two_tenants.a)
+    key = str(approval.id)
+
+    pending = (await my_requests(as_tenant, two_tenants.a))[key]
+    assert pending["status"] == "pending" and pending["request"] == "reset_password"
+    assert pending["decided_by"] is None
+
+    await decide_as(as_tenant, two_tenants.a, approval.id, support_agents["a"], note="checked by phone")
+
+    approved = (await my_requests(as_tenant, two_tenants.a))[key]
+    assert approved["status"] == "approved" and approved["decided_by"] == "Agent a"
+    assert approved["note"] == "checked by phone" and "reset link was sent" in approved["outcome"]
+
+
+async def test_a_rejected_request_shows_the_reason(two_tenants, support_agents, as_tenant):
+    _, approval = await request_reset(as_tenant, two_tenants.a)
+    await decide_as(as_tenant, two_tenants.a, approval.id, support_agents["a"], "reject", "Use self-service")
+
+    rejected = (await my_requests(as_tenant, two_tenants.a))[str(approval.id)]
+    assert (rejected["status"], rejected["note"]) == ("rejected", "Use self-service")
+
+
+async def test_you_only_see_your_own_requests_never_a_colleagues_or_another_tenants(
+    two_tenants, support_agents, as_tenant
+):
+    _, colleagues = await request_reset(as_tenant, two_tenants.a, employee_id=support_agents["a"])
+    _, other_tenants = await request_reset(as_tenant, two_tenants.b)
+    _, mine = await request_reset(as_tenant, two_tenants.a)
+
+    seen = await my_requests(as_tenant, two_tenants.a)
+    assert str(mine.id) in seen
+    assert str(colleagues.id) not in seen
+    assert str(other_tenants.id) not in seen

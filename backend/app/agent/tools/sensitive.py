@@ -12,6 +12,7 @@ from sqlalchemy import select
 
 from app.agent.tools.base import Tool, ToolContext
 from app.db.models import (
+    Approval,
     AuditLog,
     Employee,
     Escalation,
@@ -128,6 +129,42 @@ async def grant_system_access(ctx: ToolContext, args: GrantAccessArgs) -> dict:
     }
 
 
+class ListMyRequestsArgs(BaseModel):
+    pass
+
+
+async def list_my_requests(ctx: ToolContext, args: ListMyRequestsArgs) -> dict:
+    """The authoritative answer to "was my request approved?" (the model cannot guess it)."""
+    approvals = (
+        await ctx.session.scalars(
+            select(Approval)
+            .where(Approval.requested_by == ctx.employee_id)
+            .order_by(Approval.created_at.desc())
+            .limit(10)
+        )
+    ).all()
+    deciders = {
+        e.id: e.full_name
+        for e in await ctx.session.scalars(
+            select(Employee).where(Employee.id.in_([a.decided_by for a in approvals if a.decided_by]))
+        )
+    }
+    return {
+        "requests": [
+            {
+                "approval_id": str(a.id),
+                "request": a.tool_name,
+                "status": a.status.value,
+                "decided_by": deciders.get(a.decided_by),
+                "note": a.decision_note,
+                "outcome": (a.result or {}).get("message") or (a.result or {}).get("error"),
+                "created_at": a.created_at.isoformat(),
+            }
+            for a in approvals
+        ]
+    }
+
+
 SENSITIVE_TOOLS = [
     Tool(
         name="escalate_to_human",
@@ -137,6 +174,16 @@ SENSITIVE_TOOLS = [
         ),
         args_model=EscalateArgs,
         handler=escalate_to_human,
+    ),
+    Tool(
+        name="list_my_requests",
+        description=(
+            "List the employee's password-reset and access requests with their real status "
+            "(pending, approved, rejected, expired) and outcome. Call it to answer whether a request "
+            "was approved or done; never guess, and do not open a ticket just to find out."
+        ),
+        args_model=ListMyRequestsArgs,
+        handler=list_my_requests,
     ),
     Tool(
         name="reset_password",

@@ -39,11 +39,18 @@ Because that message is appended to the conversation, a decision takes the **con
 it could land between an assistant tool call and its result and make the history invalid for the model API.
 A busy conversation gets 409 and the decision is retried.
 
-**7. Every sensitive step is in an append-only `audit_log`**: the request, the decision with who made it and
+**7. The model asks the system, not its memory, whether a request was approved.** The outcome is also
+appended to the conversation, but a first live run showed that is not enough: asked "did the reset go
+through?" the model answered "I couldn't verify that" and opened a needless ticket, treating the text as
+unverifiable. `list_my_requests` returns the real status, who decided, the note and the outcome (only the
+employee's own requests), and the prompt tells the model to call it. With it the same question is answered
+correctly in one tool call.
+
+**8. Every sensitive step is in an append-only `audit_log`**: the request, the decision with who made it and
 why, and the action itself. The runtime database role has no `UPDATE` or `DELETE` on it, so neither a bug nor
 an injected instruction can edit history (a test proves it).
 
-**8. Escalation is its own, smaller thing.** `escalate_to_human` only works on the employee's *own* ticket
+**9. Escalation is its own, smaller thing.** `escalate_to_human` only works on the employee's *own* ticket
 (checked in the tool, not just by RLS) and is idempotent per ticket. The queue (`pending` -> `acknowledged`
 -> `resolved`) is worked by support agents and moves the ticket's status.
 

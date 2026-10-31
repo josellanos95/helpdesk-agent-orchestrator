@@ -28,7 +28,8 @@ listed (struck through) so the history of what the project learned is not lost.
 | 23 | Expired approvals stay `pending` until someone tries to decide them and the employee is never told. | M5 | M8 (reaper that closes and announces them) |
 | 24 | Escalations have no assignee; who acknowledged one only exists in the audit log. | M5 | M7 |
 | 25 | `reset_password` / `grant_system_access` are simulated (audit record only); identity verification of the requester is delegated to the human approver. | M5 | accept (document in README) |
-| 26 | The agent cannot yet be evaluated on approval behaviour (does it claim success while pending? does it re-ask?). | M5 | M8 eval cases |
+| 26 | Approval behaviour is only spot-checked with the live model (7 turns, all as intended after the fixes below). Needs eval cases: claims success while pending? re-asks? skips approval under pressure? | M5 | M8 eval cases |
+| 27 | In a live run the agent offered to "request temporary access to a backup system" unprompted (offers are free, but it should only offer what the tools can do for that employee). | M5 live test | M8 (eval case) |
 | 19 | No automated live-model check in CI (costs money, non-deterministic). | M3 | M8 (manual/weekly eval job with its own key) |
 
 ## Needs the owner
@@ -39,6 +40,10 @@ listed (struck through) so the history of what the project learned is not lost.
 - Optional cheaper provider (DeepSeek, Kimi, ...): send an OpenAI-compatible base URL, model name and prices.
 
 ## Fixed
+
+- ~~Live run: after an approval the model said "I couldn't verify that the reset completed" and opened a
+  needless ticket, ignoring the approval message in the conversation~~ (M5: `list_my_requests` tool + prompt;
+  re-run: one tool call, correct answer, no ticket).
 
 - ~~**Tests run with explicit paths used the development database.**~~ (M5, found 2026-10-31.) The harness set
   the test `DATABASE_URL` in `pytest_configure`, which pytest calls *after* importing the conftest files of
