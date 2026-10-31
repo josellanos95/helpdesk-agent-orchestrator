@@ -2,18 +2,28 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.runner import run_agent
 from app.agent.tools import ToolRegistry, default_registry
 from app.api.deps import get_db, get_embedder, get_llm, get_redis, get_tenant_id
 from app.config import get_settings
-from app.db.models import AgentRun, AgentRunStatus, AgentStep, Conversation, Employee, Message, MessageRole
+from app.db.models import (
+    AgentRun,
+    AgentRunStatus,
+    AgentStep,
+    Approval,
+    ApprovalStatus,
+    Conversation,
+    Employee,
+    Message,
+    MessageRole,
+)
 from app.db.session import tenant_session
 from app.llm.base import LLMClient
 from app.llm.embeddings import Embedder
@@ -48,11 +58,27 @@ class MessageIn(BaseModel):
     content: str = Field(min_length=1, max_length=4000)
 
 
+class ConversationListItem(BaseModel):
+    id: uuid.UUID
+    employee_id: uuid.UUID
+    employee_name: str
+    started_at: datetime
+    last_message_at: datetime
+    title: str
+    preview: str
+    pending_approvals: int
+
+
 class MessageOut(BaseModel):
+    id: uuid.UUID
+    seq: int
     role: MessageRole
     content: str
     tool_name: str | None = None
+    tool_call_id: str | None = None
     tool_calls: list | None = None
+    run_id: uuid.UUID | None = None
+    step_index: int | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -116,9 +142,79 @@ async def list_employees(session: AsyncSession = Depends(get_db)) -> list[Employ
     return list(await session.scalars(select(Employee).order_by(Employee.full_name)))
 
 
+@router.get("/conversations", response_model=list[ConversationListItem])
+async def list_conversations(
+    employee_id: uuid.UUID | None = None,
+    limit: int = Query(50, ge=1, le=100),
+    session: AsyncSession = Depends(get_db),
+) -> list[ConversationListItem]:
+    """Newest activity first. An employee passes their own id; support agents list the whole tenant."""
+    in_this_conversation = Message.conversation_id == Conversation.id
+    last_at = (
+        select(func.max(Message.created_at))
+        .where(in_this_conversation)
+        .correlate(Conversation)
+        .scalar_subquery()
+    )
+    preview = (
+        select(Message.content)
+        .where(in_this_conversation, Message.role.in_([MessageRole.user, MessageRole.assistant]))
+        .order_by(Message.seq.desc())
+        .limit(1)
+        .correlate(Conversation)
+        .scalar_subquery()
+    )
+    title = (
+        select(Message.content)
+        .where(in_this_conversation, Message.role == MessageRole.user)
+        .order_by(Message.seq)
+        .limit(1)
+        .correlate(Conversation)
+        .scalar_subquery()
+    )
+    pending = (
+        select(func.count())
+        .select_from(Approval)
+        .where(Approval.conversation_id == Conversation.id, Approval.status == ApprovalStatus.pending)
+        .correlate(Conversation)
+        .scalar_subquery()
+    )
+    query = (
+        select(
+            Conversation,
+            Employee.full_name,
+            last_at.label("last_at"),
+            preview.label("preview"),
+            title.label("title"),
+            pending.label("pending"),
+        )
+        .join(Employee, Employee.id == Conversation.employee_id)
+        .order_by(func.coalesce(last_at, Conversation.started_at).desc())
+        .limit(limit)
+    )
+    if employee_id is not None:
+        query = query.where(Conversation.employee_id == employee_id)
+    return [
+        ConversationListItem(
+            id=c.id,
+            employee_id=c.employee_id,
+            employee_name=name,
+            started_at=c.started_at,
+            last_message_at=last or c.started_at,
+            title=(first or "")[:120],
+            preview=(text or "")[:160],
+            pending_approvals=count,
+        )
+        for c, name, last, text, first, count in (await session.execute(query)).all()
+    ]
+
+
 @router.post("/conversations", response_model=ConversationOut, status_code=201)
-async def create_conversation(body: ConversationCreate, session: AsyncSession = Depends(get_db),
-                              tenant_id: uuid.UUID = Depends(get_tenant_id)) -> Conversation:
+async def create_conversation(
+    body: ConversationCreate,
+    session: AsyncSession = Depends(get_db),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+) -> Conversation:
     if await session.get(Employee, body.employee_id) is None:
         raise HTTPException(status_code=404, detail="Employee not found")
     conversation = Conversation(tenant_id=tenant_id, employee_id=body.employee_id)
@@ -134,6 +230,29 @@ async def list_messages(conversation_id: uuid.UUID, session: AsyncSession = Depe
         select(Message).where(Message.conversation_id == conversation_id).order_by(Message.seq)
     )
     return list(rows)
+
+
+@router.get("/conversations/{conversation_id}/runs", response_model=list[RunOut])
+async def list_runs(conversation_id: uuid.UUID, session: AsyncSession = Depends(get_db)) -> list[RunOut]:
+    """Every run of the conversation with its steps so far. Steps are committed one by one, so while a run is
+    still going this is what lets a screen show the agent's work live."""
+    await _conversation_or_404(session, conversation_id)
+    runs = (
+        await session.scalars(
+            select(AgentRun).where(AgentRun.conversation_id == conversation_id).order_by(AgentRun.started_at)
+        )
+    ).all()
+    steps = (
+        await session.scalars(
+            select(AgentStep)
+            .where(AgentStep.run_id.in_([r.id for r in runs]))
+            .order_by(AgentStep.run_id, AgentStep.step_index)
+        )
+    ).all()
+    by_run: dict[uuid.UUID, list[AgentStep]] = {}
+    for step in steps:
+        by_run.setdefault(step.run_id, []).append(step)
+    return [_run_out(run, by_run.get(run.id, [])) for run in runs]
 
 
 @router.post("/conversations/{conversation_id}/messages", response_model=ReplyOut)
@@ -231,6 +350,10 @@ async def get_run(run_id: uuid.UUID, session: AsyncSession = Depends(get_db)) ->
     steps = await session.scalars(
         select(AgentStep).where(AgentStep.run_id == run_id).order_by(AgentStep.step_index)
     )
+    return _run_out(run, list(steps))
+
+
+def _run_out(run: AgentRun, steps: list[AgentStep]) -> RunOut:
     return RunOut(
         id=run.id,
         conversation_id=run.conversation_id,

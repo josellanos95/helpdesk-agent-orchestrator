@@ -1,0 +1,381 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-31T18:09:00.465Z",
+  "title": "Design System: Triagent",
+  "extensions": {
+    "colorMeta": {
+      "ribbon-blue": {
+        "role": "primary",
+        "displayName": "Ribbon Blue",
+        "canonical": "#1f4aa8",
+        "darkValue": "#8fb0ff",
+        "tonalRamp": [
+          "#102554",
+          "#17387e",
+          "#1f4aa8",
+          "#4c6eb9",
+          "#7992cb",
+          "#a5b7dc",
+          "#ced7ec",
+          "#e9edf6"
+        ]
+      },
+      "ribbon-red": {
+        "role": "secondary",
+        "displayName": "Ribbon Red",
+        "canonical": "#b3261e",
+        "darkValue": "#ff8a80",
+        "tonalRamp": [
+          "#5a130f",
+          "#861d17",
+          "#b3261e",
+          "#c2514b",
+          "#d17d78",
+          "#e1a8a5",
+          "#eecfce",
+          "#f7e9e9"
+        ]
+      },
+      "amber-waiting": {
+        "role": "tertiary",
+        "displayName": "Waiting Amber",
+        "canonical": "#7a4f00",
+        "darkValue": "#f2c14e",
+        "tonalRamp": [
+          "#3d2800",
+          "#5c3b00",
+          "#7a4f00",
+          "#957233",
+          "#af9566",
+          "#cab999",
+          "#e2d8c7",
+          "#f2ede6"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Printer Ink",
+        "canonical": "#161b26",
+        "darkValue": "#d9e8da",
+        "tonalRamp": [
+          "#0b0e13",
+          "#11141d",
+          "#161b26",
+          "#454951",
+          "#73767d",
+          "#a2a4a8",
+          "#cccdcf",
+          "#e8e8e9"
+        ]
+      },
+      "band": {
+        "role": "neutral",
+        "displayName": "Green Band",
+        "canonical": "#e4f0da",
+        "darkValue": "#16271d",
+        "tonalRamp": [
+          "#72786d",
+          "#abb4a4",
+          "#e4f0da",
+          "#e9f3e1",
+          "#eff6e9",
+          "#f4f9f0",
+          "#f9fcf7",
+          "#fcfefb"
+        ]
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Hairline Green",
+        "canonical": "#c9ddbb",
+        "darkValue": "#2e4636",
+        "tonalRamp": [
+          "#656f5e",
+          "#97a68c",
+          "#c9ddbb",
+          "#d4e4c9",
+          "#dfebd6",
+          "#e9f1e4",
+          "#f3f8f0",
+          "#fafcf8"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Listing Paper",
+        "canonical": "#fbfcf7",
+        "darkValue": "#0e1511",
+        "tonalRamp": [
+          "#7e7e7c",
+          "#bcbdb9",
+          "#fbfcf7",
+          "#fcfdf9",
+          "#fdfdfa",
+          "#fdfefc",
+          "#fefefd",
+          "#fffffe"
+        ]
+      },
+      "ink-2": {
+        "role": "neutral",
+        "displayName": "Ink Soft",
+        "canonical": "#3f4756",
+        "darkValue": "#b4c6b6",
+        "tonalRamp": [
+          "#20242b",
+          "#2f3541",
+          "#3f4756",
+          "#656c78",
+          "#8c919a",
+          "#b2b5bb",
+          "#d5d7da",
+          "#ecedee"
+        ]
+      },
+      "ink-3": {
+        "role": "neutral",
+        "displayName": "Ink Quiet",
+        "canonical": "#5b6472",
+        "darkValue": "#8fa392",
+        "tonalRamp": [
+          "#2e3239",
+          "#444b56",
+          "#5b6472",
+          "#7c838e",
+          "#9da2aa",
+          "#bdc1c7",
+          "#dbdde0",
+          "#eff0f1"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "page-title": {
+        "displayName": "Page title",
+        "purpose": "Page headings."
+      },
+      "entry-title": {
+        "displayName": "Entry title",
+        "purpose": "Entry screen only."
+      },
+      "section-title": {
+        "displayName": "Section title",
+        "purpose": "Section breaks."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Prose and printed message text."
+      },
+      "line-text": {
+        "displayName": "Line text",
+        "purpose": "The printed text of a listing line."
+      },
+      "secondary": {
+        "displayName": "Secondary",
+        "purpose": "Sub-lines and labels."
+      },
+      "column-head": {
+        "displayName": "Column head",
+        "purpose": "Listing column-head row, wide screens."
+      },
+      "actor": {
+        "displayName": "Actor",
+        "purpose": "Actor column, uppercase sans."
+      },
+      "mono-data": {
+        "displayName": "Mono data",
+        "purpose": "Time, ms, cost, tokens, inspector data."
+      },
+      "stamp": {
+        "displayName": "Stamp",
+        "purpose": "Rubber-stamp states."
+      }
+    },
+    "shadows": [
+      {
+        "name": "popover-sheet",
+        "value": "0 8px 24px rgb(0 0 0 / 0.18)",
+        "purpose": "Desktop run-detail popover only. Everything else is flat."
+      },
+      {
+        "name": "selected-inset",
+        "value": "inset 0 0 0 1.5px var(--ink)",
+        "purpose": "Pressed/current listing line and current conversation."
+      }
+    ],
+    "motion": [
+      {
+        "name": "line-feed",
+        "value": "180ms cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "New listing line: translateY(-0.5rem) and clip-path open."
+      },
+      {
+        "name": "stamp-down",
+        "value": "160ms cubic-bezier(0.16, 1, 0.3, 1) 120ms",
+        "purpose": "Human signature stamp scales 1.6 to 1 once."
+      },
+      {
+        "name": "cursor-blink",
+        "value": "1s steps(2, start) infinite",
+        "purpose": "Live print-head block cursor."
+      },
+      {
+        "name": "bar-grow",
+        "value": "220ms linear",
+        "purpose": "Duration bar scaleX."
+      },
+      {
+        "name": "sheet-rise",
+        "value": "220ms cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Sheet entry."
+      },
+      {
+        "name": "control-state",
+        "value": "120ms ease-out",
+        "purpose": "Button background and border."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "tabs-to-topnav",
+        "value": "800px"
+      },
+      {
+        "name": "conversation-list",
+        "value": "1100px"
+      },
+      {
+        "name": "run-inspector",
+        "value": "1360px"
+      },
+      {
+        "name": "listing-columns (container)",
+        "value": "40rem"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Button",
+      "kind": "button",
+      "refersTo": "button",
+      "description": "Squared 44px outlined button; band wash on hover.",
+      "html": "<div class=\"ds-root\"><button class=\"ds-btn\">Cancel</button> <button class=\"ds-btn ds-primary\">Send</button> <button class=\"ds-btn ds-danger\">Reject</button></div>",
+      "css": ".ds-root{--paper:#fbfcf7;--band:#e4f0da;--rule:#c9ddbb;--ink:#161b26;--ink-2:#3f4756;--ink-3:#5b6472;--blue:#1f4aa8;--red:#b3261e;--amber:#7a4f00;font-family:'Public Sans Variable',system-ui,sans-serif;color:var(--ink)} .ds-btn{min-height:44px;padding:0 16px;background:transparent;color:var(--ink);border:1px solid var(--ink-3);border-radius:3px;font:600 15px 'Public Sans Variable',system-ui,sans-serif;transition:background-color 120ms ease-out,border-color 120ms ease-out;cursor:pointer} .ds-btn:hover{background:var(--band);border-color:var(--ink)} .ds-btn:focus-visible{outline:2px solid var(--blue);outline-offset:2px} .ds-btn:active{background:var(--rule)} .ds-primary{background:var(--blue);color:#fff;border-color:var(--blue)} .ds-primary:hover{background:color-mix(in srgb,var(--blue) 88%,var(--ink));border-color:var(--blue)} .ds-danger{color:var(--red);border-color:var(--red)} .ds-danger:hover{background:color-mix(in srgb,var(--red) 12%,var(--paper));border-color:var(--red)}"
+    },
+    {
+      "name": "Field",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "44px paper field with blue focus.",
+      "html": "<div class=\"ds-root\"><input class=\"ds-field\" placeholder=\"Ask for IT help\"></div>",
+      "css": ".ds-root{--paper:#fbfcf7;--band:#e4f0da;--rule:#c9ddbb;--ink:#161b26;--ink-2:#3f4756;--ink-3:#5b6472;--blue:#1f4aa8;--red:#b3261e;--amber:#7a4f00;font-family:'Public Sans Variable',system-ui,sans-serif;color:var(--ink)} .ds-field{width:100%;min-height:44px;padding:10px 12px;background:var(--paper);color:var(--ink);border:1px solid var(--ink-3);border-radius:3px;font:16px/1.5 'Public Sans Variable',system-ui,sans-serif;box-sizing:border-box;caret-color:var(--blue)} .ds-field:focus-visible{outline:2px solid var(--blue);outline-offset:0;border-color:var(--blue)}"
+    },
+    {
+      "name": "Segmented switch",
+      "kind": "chip",
+      "refersTo": "",
+      "description": "Persona and language switch; selected inverts to ink.",
+      "html": "<div class=\"ds-root\"><div class=\"ds-seg\"><button aria-selected=\"true\">Employee</button><button>Support</button></div></div>",
+      "css": ".ds-root{--paper:#fbfcf7;--band:#e4f0da;--rule:#c9ddbb;--ink:#161b26;--ink-2:#3f4756;--ink-3:#5b6472;--blue:#1f4aa8;--red:#b3261e;--amber:#7a4f00;font-family:'Public Sans Variable',system-ui,sans-serif;color:var(--ink)} .ds-seg{display:inline-flex;border:1px solid var(--ink-3);border-radius:3px;overflow:hidden} .ds-seg button{min-height:40px;padding:0 14px;border:0;background:transparent;font:500 15px 'Public Sans Variable',system-ui,sans-serif;color:var(--ink-2);cursor:pointer} .ds-seg button+button{border-left:1px solid var(--ink-3)} .ds-seg button:hover{background:var(--band)} .ds-seg button:focus-visible{outline:2px solid var(--blue);outline-offset:-2px} .ds-seg button[aria-selected=true]{background:var(--ink);color:var(--paper);font-weight:650}"
+    },
+    {
+      "name": "Stamps",
+      "kind": "chip",
+      "refersTo": "stamp-approved",
+      "description": "Outlined mono state chips, plus the doubled-rule signature variant.",
+      "html": "<div class=\"ds-root\"><span class=\"ds-stamp ds-approved\">Approved</span> <span class=\"ds-stamp ds-void\">Void</span> <span class=\"ds-stamp ds-awaiting\">Awaiting</span> <span class=\"ds-stamp ds-approved ds-sign\">Signed</span></div>",
+      "css": ".ds-root{--paper:#fbfcf7;--band:#e4f0da;--rule:#c9ddbb;--ink:#161b26;--ink-2:#3f4756;--ink-3:#5b6472;--blue:#1f4aa8;--red:#b3261e;--amber:#7a4f00;font-family:'Public Sans Variable',system-ui,sans-serif;color:var(--ink)} .ds-stamp{display:inline-flex;padding:0 6px;border:1.5px solid currentColor;border-radius:2px;font:700 12px/1.35 'JetBrains Mono Variable',ui-monospace,monospace;letter-spacing:.06em;text-transform:uppercase;transform:rotate(-1.5deg)} .ds-approved{color:var(--blue)} .ds-void{color:var(--red)} .ds-awaiting{color:var(--amber)} .ds-sign{font-size:14px;padding:1px 8px;outline:1px solid currentColor;outline-offset:2px}"
+    },
+    {
+      "name": "Listing lines",
+      "kind": "custom",
+      "refersTo": "listing-row",
+      "description": "Banded ruled lines: time, actor, content, meta with duration bar; a struck void line.",
+      "html": "<div class=\"ds-root\"><ul class=\"ds-listing\"><li><div class=\"ds-row\"><span class=\"ds-t\">14:02:11</span><span class=\"ds-a\">Agent</span><span class=\"ds-c\">Looked up the VPN guide.</span><span class=\"ds-m\"><span class=\"ds-t\">840 ms</span><span class=\"ds-bar\"><i style=\"--s:.4\"></i></span></span></div></li><li><div class=\"ds-row\"><span class=\"ds-t\">14:02:14</span><span class=\"ds-a\">Agent</span><span class=\"ds-c ds-struck\">Reset password for A. Rivera <span class=\"ds-stamp ds-void\">Void</span></span><span class=\"ds-m\"><span class=\"ds-t\">$0.004</span></span></div></li></ul></div>",
+      "css": ".ds-root{--paper:#fbfcf7;--band:#e4f0da;--rule:#c9ddbb;--ink:#161b26;--ink-2:#3f4756;--ink-3:#5b6472;--blue:#1f4aa8;--red:#b3261e;--amber:#7a4f00;font-family:'Public Sans Variable',system-ui,sans-serif;color:var(--ink)} .ds-stamp{display:inline-flex;padding:0 6px;border:1.5px solid currentColor;border-radius:2px;font:700 12px/1.35 'JetBrains Mono Variable',ui-monospace,monospace;letter-spacing:.06em;text-transform:uppercase;transform:rotate(-1.5deg)} .ds-approved{color:var(--blue)} .ds-void{color:var(--red)} .ds-awaiting{color:var(--amber)} .ds-sign{font-size:14px;padding:1px 8px;outline:1px solid currentColor;outline-offset:2px} .ds-listing{list-style:none;margin:0;padding:0;border-top:1px solid var(--ink)} .ds-listing>li{border-bottom:1px solid var(--rule)} .ds-listing>li:nth-child(even){background:var(--band)} .ds-row{display:grid;grid-template-columns:4.5rem 8rem 1fr 9rem;align-items:stretch} .ds-row>span{padding:13px 0 10px 14px;border-left:1px solid var(--rule)} .ds-row>span:first-child{border-left:0;padding-left:16px} .ds-t{font:12px 'JetBrains Mono Variable',ui-monospace,monospace;font-variant-numeric:tabular-nums;color:var(--ink-3)} .ds-a{font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-2)} .ds-c{line-height:1.55} .ds-struck{text-decoration:line-through;text-decoration-color:var(--red);text-decoration-thickness:1px;color:var(--ink-3)} .ds-m{display:flex;flex-direction:column;align-items:flex-end;gap:4px} .ds-bar{display:block;width:100%;height:4px;background:color-mix(in srgb,var(--ink) 16%,var(--band));border-radius:1px;overflow:hidden} .ds-bar>i{display:block;height:100%;background:var(--ink-2);transform:scaleX(var(--s,0));transform-origin:left}"
+    },
+    {
+      "name": "Live print-head row",
+      "kind": "custom",
+      "refersTo": "",
+      "description": "In-progress step: blinking block cursor and growing blue duration bar.",
+      "html": "<div class=\"ds-root\"><div class=\"ds-live\">Searching the knowledge base<span class=\"ds-cursor\"></span><span class=\"ds-bar\"><i style=\"--s:.55\"></i></span></div></div>",
+      "css": ".ds-root{--paper:#fbfcf7;--band:#e4f0da;--rule:#c9ddbb;--ink:#161b26;--ink-2:#3f4756;--ink-3:#5b6472;--blue:#1f4aa8;--red:#b3261e;--amber:#7a4f00;font-family:'Public Sans Variable',system-ui,sans-serif;color:var(--ink)} .ds-live{display:flex;align-items:center;gap:12px;padding:10px 16px;border-top:1px solid var(--ink);border-bottom:1px solid var(--rule)} .ds-cursor{display:inline-block;width:.5em;height:1em;margin-left:.25em;background:var(--blue);animation:ds-blink 1s steps(2,start) infinite} @keyframes ds-blink{to{visibility:hidden}} .ds-bar{display:block;width:56px;height:4px;background:var(--rule);border-radius:1px;overflow:hidden;flex:none} .ds-bar>i{display:block;height:100%;background:var(--blue);transform:scaleX(var(--s,0));transform-origin:left;transition:transform 220ms linear}"
+    },
+    {
+      "name": "Notice",
+      "kind": "card",
+      "refersTo": "notice",
+      "description": "Band-filled notice; error variant has a red border.",
+      "html": "<div class=\"ds-root\"><div class=\"ds-notice\">This is a demo identity.</div> <div class=\"ds-notice ds-err\" style=\"margin-top:8px\">The provider is unavailable.</div></div>",
+      "css": ".ds-root{--paper:#fbfcf7;--band:#e4f0da;--rule:#c9ddbb;--ink:#161b26;--ink-2:#3f4756;--ink-3:#5b6472;--blue:#1f4aa8;--red:#b3261e;--amber:#7a4f00;font-family:'Public Sans Variable',system-ui,sans-serif;color:var(--ink)} .ds-notice{padding:10px 12px;border:1px solid var(--rule);background:var(--band);border-radius:3px;font-size:14px;color:var(--ink-2)} .ds-err{border-color:var(--red);color:var(--ink)}"
+    },
+    {
+      "name": "Tab bar",
+      "kind": "nav",
+      "refersTo": "",
+      "description": "Phone bottom tab bar; current tab banded with a 2px blue top marker.",
+      "html": "<div class=\"ds-root\"><nav class=\"ds-tabs\"><a aria-current=\"page\" href=\"#\">Chat</a><a href=\"#\">Requests <span class=\"ds-badge\">2</span></a><a href=\"#\">Knowledge</a></nav></div>",
+      "css": ".ds-root{--paper:#fbfcf7;--band:#e4f0da;--rule:#c9ddbb;--ink:#161b26;--ink-2:#3f4756;--ink-3:#5b6472;--blue:#1f4aa8;--red:#b3261e;--amber:#7a4f00;font-family:'Public Sans Variable',system-ui,sans-serif;color:var(--ink)} .ds-tabs{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;background:var(--paper);border-top:1px solid var(--ink)} .ds-tabs a{position:relative;display:flex;align-items:center;justify-content:center;gap:6px;min-height:60px;color:var(--ink-3);font:500 12px 'Public Sans Variable',system-ui,sans-serif;text-decoration:none} .ds-tabs a:focus-visible{outline:2px solid var(--blue);outline-offset:-2px} .ds-tabs a[aria-current=page]{color:var(--ink);font-weight:700;background:var(--band)} .ds-tabs a[aria-current=page]::before{content:'';position:absolute;inset:0 0 auto 0;height:2px;background:var(--blue)} .ds-badge{min-width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;border:1.5px solid var(--amber);color:var(--amber);border-radius:2px;font:700 11px/1 'JetBrains Mono Variable',ui-monospace,monospace}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Audit Listing",
+    "overview": "The agent's work is printed, not chatted. Every step of a run is a ruled line on banded greenbar fanfold paper, and nothing is ever deleted: a rejected, expired or failed line stays in place, struck through and rubber-stamped. Human decisions are signed in ribbon blue; voids and failures in ribbon red; amber appears only for what is still waiting. The dark theme is the same listing on a phosphor terminal.",
+    "keyCharacteristics": [
+      "Greenbar banding with a heavy ink top rule and hairline green rules under each line.",
+      "Stamps as the only state vocabulary: outlined mono chips, always carrying a word.",
+      "Live print-head row: blinking block cursor plus a duration bar that grows to scale.",
+      "Sans for everything read; mono only for time, milliseconds, cost, stamps.",
+      "Light and phosphor-dark themes from one token set."
+    ],
+    "rules": [
+      {
+        "name": "The Ribbon Rule",
+        "body": "Blue means a human did it or is acting; red means void or failed; amber means still waiting. A colour never carries a state alone; the stamp word is always present.",
+        "section": "colors"
+      },
+      {
+        "name": "The Green Is Paper Rule",
+        "body": "Green belongs to the paper (band, rule, scrim ink), never to a status. There is no success green.",
+        "section": "colors"
+      },
+      {
+        "name": "The Mono Ration Rule",
+        "body": "Monospace is for time, milliseconds, cost and stamps. Anything a person reads as a sentence is sans.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tabular Rule",
+        "body": "Every number that lines up in a column uses tabular numerals.",
+        "section": "typography"
+      },
+      {
+        "name": "The Ruled Column Rule",
+        "body": "Wide listings separate columns with 1px hairline rules, not gaps or cards.",
+        "section": "layout"
+      },
+      {
+        "name": "The Flat Paper Rule",
+        "body": "Nothing floats except the single desktop popover sheet. Cards, glows and stacked shadows do not exist here.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do print every state as a line and mark it with a stamp that carries its word.",
+      "Do keep banding, the heavy ink top rule and hairline dividers on any new list.",
+      "Do use Ribbon Blue only for human action and focus, red for void/failed, amber for waiting.",
+      "Do keep mono to time, ms, cost, tokens and stamps.",
+      "Do keep controls at 44px and corners at 2-3px.",
+      "Do animate only as printing: line-feed reveal 180ms, stamp-down 160ms, cursor blink, bar growth; honour reduced motion."
+    ],
+    "donts": [
+      "Don't add cards, rounded pills, gradients or glow shadows; the world is flat paper.",
+      "Don't add a success green or use colour alone to signal state.",
+      "Don't delete a rejected or failed line; strike and stamp it.",
+      "Don't set sentences in mono.",
+      "Don't reintroduce the sidebar-plus-bubbles chat pattern."
+    ]
+  }
+}

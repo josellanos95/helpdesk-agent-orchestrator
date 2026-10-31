@@ -115,9 +115,11 @@ async def run_agent(
         tenant = await session.get(Tenant, tenant_id)  # the tenants table is not RLS-scoped
         employee = await session.get(Employee, employee_id)
         system_prompt = build_system_prompt(tenant, employee)
-        run = AgentRun(tenant_id=tenant_id, conversation_id=conversation_id, model=llm.model)
+        run = AgentRun(
+            id=uuid.uuid4(), tenant_id=tenant_id, conversation_id=conversation_id, model=llm.model
+        )
         session.add(run)
-        session.add(_message(tenant_id, conversation_id, MessageRole.user, user_text))
+        session.add(_message(tenant_id, conversation_id, MessageRole.user, user_text, run_id=run.id))
         await session.flush()
         run_id = run.id
 
@@ -176,12 +178,17 @@ async def _loop(
             logger.exception("LLM call failed")
             totals.error = f"{type(exc).__name__}: {exc}"[:500]
             async with scope() as session:
-                _add_step(
+                failed_step = _add_step(
                     session, tenant_id, run_id, totals,
                     kind="llm", name=llm.model, input={"message_count": len(messages)},
                     latency_ms=_ms_since(started), error=totals.error,
                 )  # fmt: skip
-                session.add(_message(tenant_id, conversation_id, MessageRole.assistant, LLM_FAILED_REPLY))
+                session.add(
+                    _message(
+                        tenant_id, conversation_id, MessageRole.assistant, LLM_FAILED_REPLY,
+                        run_id=run_id, step_index=failed_step,
+                    )  # fmt: skip
+                )
             return AgentRunStatus.failed, LLM_FAILED_REPLY
         latency_ms = _ms_since(started)
 
@@ -190,7 +197,7 @@ async def _loop(
         totals.cost += cost_usd(response.model or llm.model, response.usage)
 
         async with scope() as session:
-            _add_step(
+            llm_step = _add_step(
                 session, tenant_id, run_id, totals,
                 kind="llm",
                 name=response.model or llm.model,
@@ -203,7 +210,10 @@ async def _loop(
                 prompt_tokens=response.usage.prompt_tokens,
                 completion_tokens=response.usage.completion_tokens,
             )  # fmt: skip
-            assistant = _message(tenant_id, conversation_id, MessageRole.assistant, response.content or "")
+            assistant = _message(
+                tenant_id, conversation_id, MessageRole.assistant, response.content or "",
+                run_id=run_id, step_index=llm_step,
+            )  # fmt: skip
             assistant.tool_calls = [
                 {"id": c.id, "name": c.name, "arguments": c.arguments} for c in response.tool_calls
             ] or None
@@ -222,33 +232,53 @@ async def _loop(
             for call in response.tool_calls:
                 started = time.perf_counter()
                 outcome = await handle_call(ctx, registry, call)
-                _add_step(
+                tool_step = _add_step(
                     session, tenant_id, run_id, totals,
                     kind="tool", name=call.name,
                     input={"arguments": call.arguments, **({"replayed": True} if outcome.replayed else {})},
                     output=outcome.result, latency_ms=_ms_since(started), error=outcome.error,
                 )  # fmt: skip
                 tool_message = _message(
-                    tenant_id, conversation_id, MessageRole.tool, _dumps(outcome.result)
-                )
+                    tenant_id, conversation_id, MessageRole.tool, _dumps(outcome.result),
+                    run_id=run_id, step_index=tool_step,
+                )  # fmt: skip
                 tool_message.tool_name = call.name
                 tool_message.tool_call_id = call.id
                 session.add(tool_message)
 
     async with scope() as session:
-        session.add(_message(tenant_id, conversation_id, MessageRole.assistant, MAX_STEPS_REPLY))
+        session.add(
+            _message(tenant_id, conversation_id, MessageRole.assistant, MAX_STEPS_REPLY, run_id=run_id)
+        )
     return AgentRunStatus.max_steps, MAX_STEPS_REPLY
 
 
-def _message(tenant_id: uuid.UUID, conversation_id: uuid.UUID, role: MessageRole, content: str) -> Message:
-    return Message(tenant_id=tenant_id, conversation_id=conversation_id, role=role, content=content)
+def _message(
+    tenant_id: uuid.UUID,
+    conversation_id: uuid.UUID,
+    role: MessageRole,
+    content: str,
+    *,
+    run_id: uuid.UUID | None = None,
+    step_index: int | None = None,
+) -> Message:
+    return Message(
+        tenant_id=tenant_id,
+        conversation_id=conversation_id,
+        role=role,
+        content=content,
+        run_id=run_id,
+        step_index=step_index,
+    )
 
 
 def _add_step(
     session: AsyncSession, tenant_id: uuid.UUID, run_id: uuid.UUID, totals: _Totals, **fields
-) -> None:
-    session.add(AgentStep(tenant_id=tenant_id, run_id=run_id, step_index=totals.step_index, **fields))
+) -> int:
+    index = totals.step_index
+    session.add(AgentStep(tenant_id=tenant_id, run_id=run_id, step_index=index, **fields))
     totals.step_index += 1
+    return index
 
 
 async def _close_run(scope: SessionScope, run_id: uuid.UUID, totals: _Totals, status: AgentRunStatus) -> None:

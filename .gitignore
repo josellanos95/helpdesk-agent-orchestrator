@@ -14,7 +14,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+/lib/
+/backend/lib/
 lib64/
 parts/
 sdist/
@@ -221,3 +222,7 @@ __marimo__/
 node_modules/
 frontend/dist/
 *.local
+
+# Impeccable session logs (the config, surface briefs, DESIGN sidecar and review screenshots are kept)
+.impeccable/questions/
+.impeccable/build/

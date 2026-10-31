@@ -17,7 +17,8 @@ Multi-tenant AI agent for IT helpdesk support — tool use / function calling, R
 | M4 | Short transactions, exactly-once tool calls, per-conversation lock, `Idempotency-Key` ([ADR 0003](docs/adr/0003-idempotency-locks-short-transactions.md)) | done |
 | M5 | Human approval of sensitive actions, escalation queue, audit log ([ADR 0004](docs/adr/0004-human-approvals-and-escalation.md)) | done |
 | M6 | Per-tenant knowledge base: hybrid search (pgvector + full text), cited answers ([ADR 0005](docs/adr/0005-knowledge-base-and-hybrid-search.md)) | done |
-| M7+ | UI, evals, deploy | planned |
+| M7 | Responsive web UI: the agent's work printed live as an audit listing ([ADR 0006](docs/adr/0006-web-ui-the-audit-listing.md)) | done |
+| M8+ | Evals, guardrails, demo auth, deploy | planned |
 
 ## Local development
 
@@ -92,6 +93,26 @@ another's content): **hit@1 100%, hit@3 100%, 0 of 6 unanswerable questions retu
 | `GET /api/kb/articles`, `GET /api/kb/articles/{id}` | List / read |
 | `POST /api/kb/articles`, `PUT /api/kb/articles/{id}`, `DELETE /api/kb/articles/{id}?actor_id=` | Write (support agents only; identical content is not re-embedded) |
 | `POST /api/kb/search` | What the agent would be given for a question, with scores |
+
+## Web app
+
+```bash
+docker compose up -d && cd backend && uvicorn app.main:app --port 8000     # API (needs OPENAI_API_KEY in backend/.env)
+cd frontend && npm install && npm run dev                                    # http://localhost:5173, proxies /api to :8000
+npm test                                                                     # Vitest: line mapping, API client, i18n, send flow, components
+```
+
+Pick a fictitious company and a person (identity is **chosen, not authenticated**; real demo auth is M8).
+
+- **Employee:** Chat, Requests, Knowledge. Ask the agent something and watch each step print as a line with its
+  real time, duration, tokens and cost; click a line to inspect its input and output. A request that needs a
+  human waits as an `AWAITING` line.
+- **Support agent:** Queue (sign or reject approvals with a note, work escalations), Chats (read-only view of any
+  conversation), Knowledge (edit articles, test the search with similarity bars).
+- Works on a phone (bottom tab bar, inspector as a bottom sheet) and on a desktop (three columns). English and
+  Spanish for the interface, light and dark themes.
+
+Extra read routes the UI uses: `GET /api/conversations`, `GET /api/conversations/{id}/runs`, `GET /api/tickets`.
 
 ## Tests
 

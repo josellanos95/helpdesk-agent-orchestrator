@@ -9,7 +9,7 @@
 | M4 | Short transactions, exactly-once tool calls, per-conversation lock, `Idempotency-Key` | done |
 | M5 | Human approvals for sensitive actions, escalation queue, audit log | done |
 | M6 | Per-tenant knowledge base: hybrid search (pgvector + full text), cited answers | done |
-| M7 | UI: chat, agent console, run inspector | planned |
+| M7 | Responsive web UI: live audit listing, run inspector, approvals queue, knowledge base ([ADR 0006](adr/0006-web-ui-the-audit-listing.md)) | done |
 | M8 | Evals, guardrails, spend caps, demo authentication | planned |
 | M9 | Public deployment, README, ADRs, demo video | planned |
 

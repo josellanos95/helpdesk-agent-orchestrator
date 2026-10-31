@@ -172,6 +172,13 @@ class Message(Base):
     # On assistant messages that asked for tools: [{"id", "name", "arguments"}], so the
     # exact history can be replayed to the model on the next turn.
     tool_calls: Mapped[list | None] = mapped_column(JSONB().with_variant(JSON, "sqlite"), nullable=True)
+    # Which agent run produced this message and which step of it (assistant -> its model step, tool -> its
+    # tool step). Lets a screen show each line next to its real latency, tokens and cost. NULL for messages
+    # that no run wrote (the follow-up announcing an approval decision).
+    run_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agent_runs.id", ondelete="SET NULL"), nullable=True
+    )
+    step_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     conversation: Mapped["Conversation"] = relationship(back_populates="messages")
