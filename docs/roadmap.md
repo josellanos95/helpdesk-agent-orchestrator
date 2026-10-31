@@ -6,7 +6,7 @@
 | M1 | Data model, tenant isolation via Postgres RLS ([ADR 0001](adr/0001-multi-tenant-isolation-via-rls.md)) | done |
 | M2 | Isolation tests, migration round-trip test, CI | done |
 | M3 | Agent core: tool-calling loop, persisted messages, per-run traces | done (live OpenAI smoke test pending) |
-| M4 | Idempotent tool execution, per-conversation lock in Redis | planned |
+| M4 | Short transactions, exactly-once tool calls, per-conversation lock, `Idempotency-Key` | done |
 | M5 | Human approvals for sensitive actions, escalation queue | planned |
 | M6 | Per-tenant knowledge base with RAG (pgvector) | planned |
 | M7 | UI: chat, agent console, run inspector | planned |

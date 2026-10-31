@@ -1,5 +1,6 @@
 import uuid
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, AsyncIterator
+from contextlib import asynccontextmanager
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -23,8 +24,9 @@ async def get_admin_db() -> AsyncGenerator[AsyncSession]:
         yield session
 
 
-async def tenant_scoped_session(tenant_id: uuid.UUID) -> AsyncGenerator[AsyncSession]:
-    """RLS-enforced session scoped to one tenant for the lifetime of the transaction.
+@asynccontextmanager
+async def tenant_session(tenant_id: uuid.UUID) -> AsyncIterator[AsyncSession]:
+    """One RLS-enforced transaction scoped to one tenant: commits on exit, rolls back on error.
 
     Uses set_config(..., true) rather than `SET LOCAL app.tenant_id = :tid` —
     Postgres doesn't accept a bind parameter there (it's not a plain function
@@ -33,9 +35,18 @@ async def tenant_scoped_session(tenant_id: uuid.UUID) -> AsyncGenerator[AsyncSes
     transaction-scoped lifetime as SET LOCAL: it never survives past the
     transaction, so there is no risk of a tenant_id leaking into a later
     request that reuses the same pooled connection.
+
+    Keep these short. Code that waits on something slow (an LLM call) must not sit inside one:
+    the transaction holds a pooled connection for as long as it is open.
     """
     async with AppSessionLocal() as session, session.begin():
         await session.execute(
             text("SELECT set_config('app.tenant_id', :tid, true)"), {"tid": str(tenant_id)}
         )
+        yield session
+
+
+async def tenant_scoped_session(tenant_id: uuid.UUID) -> AsyncGenerator[AsyncSession]:
+    """FastAPI-dependency flavour of `tenant_session` (one transaction for the whole request)."""
+    async with tenant_session(tenant_id) as session:
         yield session

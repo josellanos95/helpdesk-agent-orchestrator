@@ -3,6 +3,11 @@ from openai import NOT_GIVEN, AsyncOpenAI
 
 from app.llm.base import LLMResponse, ToolCall, Usage
 
+# The SDK default is a 10-minute timeout, far longer than the 120 s conversation lock. One attempt
+# plus one retry at 45 s each stays under it, so a hung call fails the step instead of outliving the lock.
+REQUEST_TIMEOUT_SECONDS = 45.0
+MAX_RETRIES = 1
+
 
 class OpenAIClient:
     def __init__(
@@ -12,9 +17,17 @@ class OpenAIClient:
         model: str,
         base_url: str | None = None,
         http_client: httpx.AsyncClient | None = None,
+        timeout: float = REQUEST_TIMEOUT_SECONDS,
+        max_retries: int = MAX_RETRIES,
     ) -> None:
         self.model = model
-        self._client = AsyncOpenAI(api_key=api_key, base_url=base_url, http_client=http_client)
+        self._client = AsyncOpenAI(
+            api_key=api_key,
+            base_url=base_url,
+            http_client=http_client,
+            timeout=timeout,
+            max_retries=max_retries,
+        )
 
     async def complete(self, *, messages: list[dict], tools: list[dict]) -> LLMResponse:
         completion = await self._client.chat.completions.create(

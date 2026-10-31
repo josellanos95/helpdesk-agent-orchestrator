@@ -38,7 +38,15 @@ async def _ensure_database(url_str: str) -> None:
         await engine.dispose()
 
 
+def _test_redis_url() -> str:
+    """Same server as REDIS_URL but database 15, which the tests flush freely."""
+    url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+    base = url.rsplit("/", 1)[0] if url.count("/") > 2 else url
+    return f"{base}/15"
+
+
 def pytest_configure(config) -> None:
+    os.environ["REDIS_URL"] = _test_redis_url()
     url = _test_database_url()
     asyncio.run(_ensure_database(url))
     os.environ["DATABASE_URL"] = url

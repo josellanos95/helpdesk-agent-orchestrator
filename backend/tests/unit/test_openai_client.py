@@ -90,3 +90,15 @@ async def test_omits_the_tools_field_when_there_are_no_tools():
 
     assert "tools" not in captured[0]["body"]
     assert response.content == "Hi!" and response.tool_calls == []
+
+
+def test_each_call_is_bounded_well_below_the_conversation_lock_ttl():
+    """A hung provider call must fail the step before the 120 s lock could expire under it."""
+    from app.config import Settings
+    from app.llm.openai_client import MAX_RETRIES, REQUEST_TIMEOUT_SECONDS
+
+    client = OpenAIClient(api_key="sk-test", model="gpt-5-mini")
+    assert client._client.timeout == REQUEST_TIMEOUT_SECONDS
+    assert client._client.max_retries == MAX_RETRIES
+    worst_case = REQUEST_TIMEOUT_SECONDS * (MAX_RETRIES + 1)
+    assert worst_case < Settings(_env_file=None).conversation_lock_ttl_seconds

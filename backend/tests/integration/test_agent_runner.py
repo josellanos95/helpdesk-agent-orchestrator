@@ -5,7 +5,7 @@ import uuid
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 
 from app.agent.runner import LLM_FAILED_REPLY, MAX_STEPS_REPLY, run_agent
 from app.agent.tools import Tool, ToolRegistry, default_registry
@@ -14,7 +14,6 @@ from app.db.models import (
     AgentRunStatus,
     AgentStep,
     Conversation,
-    Employee,
     Message,
     MessageRole,
     System,
@@ -38,25 +37,27 @@ async def world(two_tenants):
     return two_tenants
 
 
-async def converse(world, as_tenant, llm, text, *, conversation_id=None, registry=None, **kw):
+async def converse(
+    world, as_tenant, llm, text, *, conversation_id=None, registry=None, heartbeat=None, **kw
+):
     """One user turn as tenant A's employee. Returns (result, conversation_id)."""
-    async with as_tenant(world.a.id) as session:
-        if conversation_id is None:
+    if conversation_id is None:
+        async with as_tenant(world.a.id) as session:
             conversation = Conversation(tenant_id=world.a.id, employee_id=world.a.employee_id)
             session.add(conversation)
             await session.flush()
             conversation_id = conversation.id
-        employee = await session.get(Employee, world.a.employee_id)
-        result = await run_agent(
-            session=session,
-            llm=llm,
-            registry=registry or default_registry(),
-            tenant_id=world.a.id,
-            conversation_id=conversation_id,
-            employee=employee,
-            user_text=text,
-            **kw,
-        )
+    result = await run_agent(
+        scope=lambda: as_tenant(world.a.id),
+        llm=llm,
+        registry=registry or default_registry(),
+        tenant_id=world.a.id,
+        conversation_id=conversation_id,
+        employee_id=world.a.employee_id,
+        user_text=text,
+        heartbeat=heartbeat,
+        **kw,
+    )
     return result, conversation_id
 
 
@@ -293,8 +294,7 @@ async def test_usage_and_cost_accumulate_over_every_model_call(world, as_tenant)
     assert result.cost_usd == Decimal("0.001225")  # 2500*0.25/1e6 + 300*2/1e6
 
 
-async def test_message_order_is_stable_inside_one_transaction(world, as_tenant):
-    """created_at ties inside a transaction; seq must still give the exact order."""
+async def test_message_order_follows_the_conversation_across_transactions(world, as_tenant):
     llm = ScriptedLLM(
         call("check_system_status", {"system_name": "CRM"}),
         call("list_my_tickets", {}),
@@ -302,7 +302,6 @@ async def test_message_order_is_stable_inside_one_transaction(world, as_tenant):
     )
     _, conversation_id = await converse(world, as_tenant, llm, "go")
     rows = await messages_of(conversation_id)
-    assert len({m.created_at for m in rows}) == 1  # the problem seq exists to solve
     assert [m.role for m in rows] == [
         MessageRole.user,
         MessageRole.assistant,
@@ -314,6 +313,26 @@ async def test_message_order_is_stable_inside_one_transaction(world, as_tenant):
     assert [m.seq for m in rows] == sorted(m.seq for m in rows)
 
 
+async def test_seq_orders_messages_that_share_a_timestamp(world, as_tenant):
+    """created_at is the transaction start time, so rows written in one transaction tie."""
+    async with as_tenant(world.a.id) as session:
+        conversation = Conversation(tenant_id=world.a.id, employee_id=world.a.employee_id)
+        session.add(conversation)
+        await session.flush()
+        for n in range(3):
+            session.add(
+                Message(
+                    tenant_id=world.a.id,
+                    conversation_id=conversation.id,
+                    role=MessageRole.user,
+                    content=str(n),
+                )
+            )
+    rows = await messages_of(conversation.id)
+    assert len({m.created_at for m in rows}) == 1
+    assert [m.content for m in rows] == ["0", "1", "2"]
+
+
 async def test_run_and_steps_are_tenant_scoped_rows(world, as_tenant):
     llm = ScriptedLLM(say("hi"))
     result, _ = await converse(world, as_tenant, llm, "hi")
@@ -323,3 +342,120 @@ async def test_run_and_steps_are_tenant_scoped_rows(world, as_tenant):
     async with AdminSessionLocal() as session:
         b_runs = select(func.count()).select_from(AgentRun).where(AgentRun.tenant_id == world.b.id)
         assert await session.scalar(b_runs) == 1  # only the fixture's own; ours never touched B
+
+
+# --- M4: transactions never span a model call -----------------------------------------------
+
+
+class ProbingLLM(ScriptedLLM):
+    """Counts the database transactions left open at the moment the model is being called."""
+
+    def __init__(self, *responses):
+        super().__init__(*responses)
+        self.open_transactions: list[int] = []
+
+    async def complete(self, *, messages, tools):
+        self.open_transactions.append(await open_app_transactions())
+        return await super().complete(messages=messages, tools=tools)
+
+
+async def open_app_transactions() -> int:
+    async with AdminSessionLocal() as session:
+        return await session.scalar(
+            text(
+                "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() "
+                "AND usename = 'app_runtime' AND state LIKE 'idle in transaction%'"
+            )
+        )
+
+
+async def test_probe_can_see_an_open_transaction(world, as_tenant):
+    """Guards the next test against passing vacuously."""
+    async with as_tenant(world.a.id) as session:
+        await session.execute(text("SELECT 1"))
+        assert await open_app_transactions() >= 1
+
+
+async def test_no_database_transaction_is_open_while_the_model_thinks(world, as_tenant):
+    llm = ProbingLLM(call("check_system_status", {"system_name": "CRM"}), say("done"))
+    await converse(world, as_tenant, llm, "status?")
+    assert llm.open_transactions == [0, 0]
+
+
+async def test_a_crash_midway_keeps_finished_steps_and_marks_the_run_failed(world, as_tenant, monkeypatch):
+    args = {
+        "category": "software",
+        "subject": "CRM is very slow",
+        "description": "Pages take over a minute to load since this morning.",
+    }
+    llm = ScriptedLLM(call("create_ticket", args), say("done"))
+
+    import app.agent.runner as runner
+
+    real_cost = runner.cost_usd
+    calls = {"n": 0}
+
+    def flaky_cost(model, usage):
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise ValueError("bug while accounting the second model call")
+        return real_cost(model, usage)
+
+    monkeypatch.setattr(runner, "cost_usd", flaky_cost)
+
+    async with as_tenant(world.a.id) as session:
+        conversation = Conversation(tenant_id=world.a.id, employee_id=world.a.employee_id)
+        session.add(conversation)
+        await session.flush()
+        conversation_id = conversation.id
+
+    with pytest.raises(ValueError, match="second model call"):
+        await converse(world, as_tenant, llm, "CRM is slow", conversation_id=conversation_id)
+
+    [run] = await stored(AgentRun, conversation_id=conversation_id)
+    assert run.status == AgentRunStatus.failed
+    assert "ValueError" in run.error and run.finished_at is not None
+    # The first step committed on its own: its ticket and messages are still there.
+    assert len(await stored(Ticket, conversation_id=conversation_id)) == 1
+    assert [m.role for m in await messages_of(conversation_id)] == [
+        MessageRole.user,
+        MessageRole.assistant,
+        MessageRole.tool,
+    ]
+
+
+async def test_heartbeat_runs_before_every_model_call(world, as_tenant):
+    beats = []
+
+    async def heartbeat():
+        beats.append(1)
+
+    llm = ScriptedLLM(call("list_my_tickets", {}), say("done"))
+    await converse(world, as_tenant, llm, "tickets?", heartbeat=heartbeat)
+    assert len(beats) == 2
+
+
+async def test_a_lost_lock_stops_the_run_and_marks_it_failed(world, as_tenant):
+    from app.services.locks import LockLost
+
+    beats = {"n": 0}
+
+    async def heartbeat():
+        beats["n"] += 1
+        if beats["n"] == 2:
+            raise LockLost("taken over")
+
+    llm = ScriptedLLM(call("list_my_tickets", {}), say("never reached"))
+    async with as_tenant(world.a.id) as session:
+        conversation = Conversation(tenant_id=world.a.id, employee_id=world.a.employee_id)
+        session.add(conversation)
+        await session.flush()
+        conversation_id = conversation.id
+    with pytest.raises(LockLost):
+        await converse(
+            world, as_tenant, llm, "tickets?", conversation_id=conversation_id, heartbeat=heartbeat
+        )
+
+    assert len(llm.calls) == 1  # it did not race the new lock owner with a second model call
+    [run] = await stored(AgentRun, conversation_id=conversation_id)
+    assert run.status == AgentRunStatus.failed and "LockLost" in run.error

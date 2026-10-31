@@ -2,9 +2,11 @@ import uuid
 from collections.abc import AsyncGenerator
 
 from fastapi import Depends, Header, HTTPException
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
+from app.core.redis_client import get_redis_client
 from app.db.session import tenant_scoped_session
 from app.llm.base import LLMClient
 from app.llm.openai_client import OpenAIClient
@@ -29,4 +31,13 @@ def get_llm() -> LLMClient:
     settings = get_settings()
     if not settings.openai_api_key:
         raise HTTPException(status_code=503, detail="The LLM is not configured (OPENAI_API_KEY is missing).")
-    return OpenAIClient(api_key=settings.openai_api_key, model=settings.openai_model)
+    return OpenAIClient(
+        api_key=settings.openai_api_key,
+        model=settings.openai_model,
+        base_url=settings.openai_base_url,
+    )
+
+
+def get_redis() -> Redis:
+    """Overridden in tests so each test gets a client bound to its own event loop."""
+    return get_redis_client()

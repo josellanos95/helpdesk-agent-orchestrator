@@ -14,7 +14,8 @@ Multi-tenant AI agent for IT helpdesk support — tool use / function calling, R
 | M1 | Data model with real tenant isolation via Postgres RLS ([ADR 0001](docs/adr/0001-multi-tenant-isolation-via-rls.md)) | done |
 | M2 | Isolation tests, migration round-trip test, CI | done |
 | M3 | Agent core: tool-calling loop, persisted messages, per-run traces ([ADR 0002](docs/adr/0002-agent-loop.md)) | done, live OpenAI smoke test pending |
-| M4+ | Idempotency, approvals, knowledge base, UI, evals | planned |
+| M4 | Short transactions, exactly-once tool calls, per-conversation lock, `Idempotency-Key` ([ADR 0003](docs/adr/0003-idempotency-locks-short-transactions.md)) | done |
+| M5+ | Approvals, knowledge base, UI, evals | planned |
 
 ## Local development
 
@@ -45,8 +46,18 @@ All routes take the tenant in an `X-Tenant-Id` header (temporary; real auth come
 | `GET /api/conversations/{id}/messages` | Full history, including tool calls and results |
 | `GET /api/runs/{id}` | The trace: every model call and tool call with latency, tokens and errors |
 
+`POST .../messages` accepts an optional `Idempotency-Key` header (a retry with the same key and body replays the
+stored reply instead of running the agent again). It answers `409` while another message of the same conversation
+is being processed, and `503` if Redis is unavailable.
+
 Try the real agent from a terminal (needs `OPENAI_API_KEY` in `backend/.env`):
 `python -m scripts.chat_cli --tenant acme --employee alice --trace`
+
+### Configuration gotcha
+
+An environment variable beats `backend/.env`. If `OPENAI_API_KEY` is also set as a system or user variable
+(Windows: *Environment Variables*), editing the `.env` file changes nothing. `OPENAI_BASE_URL` points the client at
+any OpenAI-compatible provider.
 
 ## Tests
 
@@ -55,7 +66,7 @@ cd backend
 pytest
 ```
 
-The suite talks to a real Postgres — Row Level Security is a database feature, so a mock would prove
+The suite needs Postgres and Redis (`docker compose up -d`). It talks to the real ones — Row Level Security is a database feature, so a mock would prove
 nothing. It uses a separate `<dbname>_test` database (created on demand from `DATABASE_URL`), never
 the development one.
 

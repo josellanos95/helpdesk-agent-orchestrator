@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import JSON, BigInteger, ForeignKey, Identity, Integer, Numeric, Text, func
+from sqlalchemy import JSON, BigInteger, ForeignKey, Identity, Integer, Numeric, Text, UniqueConstraint, func
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -267,6 +267,50 @@ class AgentStep(Base):
     run: Mapped["AgentRun"] = relationship(back_populates="steps")
 
 
+class ToolExecution(Base):
+    """Ledger that makes a tool call run at most once per (conversation, tool_call_id).
+
+    The row is claimed, the tool runs and the result is stored in ONE transaction, so a committed
+    row always has its result and a rolled-back attempt leaves nothing behind.
+    """
+
+    __tablename__ = "tool_executions"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "conversation_id", "tool_call_id", name="uq_tool_executions_call"),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False
+    )
+    tool_call_id: Mapped[str] = mapped_column(Text, nullable=False)
+    tool_name: Mapped[str] = mapped_column(Text, nullable=False)
+    arguments: Mapped[str] = mapped_column(Text, nullable=False)
+    result: Mapped[dict | None] = mapped_column(JSONB().with_variant(JSON, "sqlite"), nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class IdempotencyKey(Base):
+    """Request-level idempotency for POST .../messages (the Idempotency-Key header)."""
+
+    __tablename__ = "idempotency_keys"
+    __table_args__ = (UniqueConstraint("tenant_id", "key", name="uq_idempotency_keys_key"),)
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    key: Mapped[str] = mapped_column(Text, nullable=False)
+    request_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False)  # "in_progress" | "completed"
+    response: Mapped[dict | None] = mapped_column(JSONB().with_variant(JSON, "sqlite"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
 TENANT_SCOPED_TABLES = [
     Employee.__tablename__,
     System.__tablename__,
@@ -277,4 +321,6 @@ TENANT_SCOPED_TABLES = [
     Escalation.__tablename__,
     AgentRun.__tablename__,
     AgentStep.__tablename__,
+    ToolExecution.__tablename__,
+    IdempotencyKey.__tablename__,
 ]
