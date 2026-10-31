@@ -10,7 +10,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
@@ -95,11 +95,18 @@ async def _approval_out(session: AsyncSession, approval: Approval) -> ApprovalOu
 
 @router.get("/approvals", response_model=list[ApprovalOut])
 async def list_approvals(
-    status: ApprovalStatus | Literal["all"] = ApprovalStatus.pending, session: AsyncSession = Depends(get_db)
+    status: ApprovalStatus | Literal["all"] = ApprovalStatus.pending,
+    conversation_id: uuid.UUID | None = None,
+    requested_by: uuid.UUID | None = None,
+    session: AsyncSession = Depends(get_db),
 ) -> list[ApprovalOut]:
     query = select(Approval).order_by(Approval.created_at)
     if status != "all":
         query = query.where(Approval.status == status)
+    if conversation_id is not None:
+        query = query.where(Approval.conversation_id == conversation_id)
+    if requested_by is not None:
+        query = query.where(Approval.requested_by == requested_by)
     return [await _approval_out(session, a) for a in await session.scalars(query)]
 
 
@@ -259,3 +266,51 @@ async def resolve_escalation(
     escalation_id: uuid.UUID, body: AgentActionIn, tenant_id: uuid.UUID = Depends(get_tenant_id)
 ) -> EscalationOut:
     return await _move_escalation(escalation_id, tenant_id, body.approver_id, EscalationStatus.resolved)
+
+
+# ------------------------------------------------------------------------------ tickets
+
+
+class TicketOut(BaseModel):
+    id: uuid.UUID
+    conversation_id: uuid.UUID | None
+    employee_id: uuid.UUID
+    employee_name: str
+    category: str
+    subject: str
+    priority: str
+    status: TicketStatus
+    created_at: datetime
+    updated_at: datetime
+
+
+@router.get("/tickets", response_model=list[TicketOut])
+async def list_tickets(
+    employee_id: uuid.UUID | None = None,
+    limit: int = Query(50, ge=1, le=100),
+    session: AsyncSession = Depends(get_db),
+) -> list[TicketOut]:
+    """Newest first. An employee passes their own id to see their requests; support agents list the tenant."""
+    query = (
+        select(Ticket, Employee.full_name)
+        .join(Employee, Employee.id == Ticket.employee_id)
+        .order_by(Ticket.created_at.desc())
+        .limit(limit)
+    )
+    if employee_id is not None:
+        query = query.where(Ticket.employee_id == employee_id)
+    return [
+        TicketOut(
+            id=t.id,
+            conversation_id=t.conversation_id,
+            employee_id=t.employee_id,
+            employee_name=name,
+            category=t.category.value,
+            subject=t.subject,
+            priority=t.priority.value,
+            status=t.status,
+            created_at=t.created_at,
+            updated_at=t.updated_at,
+        )
+        for t, name in (await session.execute(query)).all()
+    ]

@@ -15,18 +15,15 @@ listed (struck through) so the history of what the project learned is not lost.
 | 8 | The model marks "degraded" systems `urgent` although the tool says urgent is for fully blocked work. | M3 live test | M8 (eval case) |
 | 9 | Prompt fixes (no ticket for refused requests, no invented capabilities) were checked on single samples only. | M3 live test | M8 (eval suite) |
 | 10 | Price table in `app/llm/pricing.py` comes from third-party trackers, has no entry for DeepSeek/Kimi/other providers. | M3 | M8 (verify against official pages when a provider is chosen) |
-| 11 | Provider failures (bad key, outage) return HTTP 200 with `run.status = "failed"`. Fine for the transcript, but the UI needs to treat it as an error state. | M3 live test | M7 |
 | 12 | `openai` SDK is pinned to 1.59.6, older than the gpt-5 family. Works for plain chat + tools; newer parameters (e.g. reasoning effort) are not typed. | M3 | M8 |
 | 13 | `gpt-5-mini`-style models reject custom sampling parameters; the client sends none, and a test enforces it. Other providers may differ. | M3 | M8 |
-| 14 | Frontend is only a status page; the public Vercel deploy still points at a backend that no longer exists. | M0 | M7 / M9 |
+| 14 | The public Vercel deploy still points at a backend that no longer exists (the UI itself is done). | M0 | M9 |
 | 15 | Hosting not decided/provisioned (VPS plan in [roadmap](roadmap.md)). | M3 | M9 |
 | 16 | GitHub repository and local folder still named `helpdesk-agent-orchestrator`; README badge and Vercel project use the old name. | M2 | M9 (rename together with deployment) |
 | 17 | Downgrade/upgrade migration test is skipped locally when another database on the server uses the `app_runtime` role. | M2 | none (runs in CI) |
 | 20 | The conversation lock is a TTL lock, not a fencing token: a run that loses it can still finish the step it is in. Bounded by per-step transactions and the ledger. | M4 | accept / revisit if multi-instance |
-| 21 | A conversation can only be touched through the API process that holds the lock; a user message rejected with 409 is lost and the UI must offer to resend it. | M4 | M7 |
-| 22 | Over HTTP a double-clicked approval gets one 200 and some 409 (conversation lock); the UI must retry on 409. | M5 | M7 |
 | 23 | Expired approvals stay `pending` until someone tries to decide them and the employee is never told. | M5 | M8 (reaper that closes and announces them) |
-| 24 | Escalations have no assignee; who acknowledged one only exists in the audit log. | M5 | M7 |
+| 24 | Escalations have no assignee; who acknowledged one only exists in the audit log (the Queue screen cannot show it either). | M5 | M8 |
 | 25 | `reset_password` / `grant_system_access` are simulated (audit record only); identity verification of the requester is delegated to the human approver. | M5 | accept (document in README) |
 | 26 | Approval behaviour is only spot-checked with the live model (7 turns, all as intended after the fixes below). Needs eval cases: claims success while pending? re-asks? skips approval under pressure? | M5 | M8 eval cases |
 | 27 | In a live run the agent offered to "request temporary access to a backup system" unprompted (offers are free, but it should only offer what the tools can do for that employee). | M5 live test | M8 (eval case) |
@@ -37,6 +34,12 @@ listed (struck through) so the history of what the project learned is not lost.
 | 32 | The agent says things like "I opened a ticket with HR" although tickets have no team routing. Overclaim by omission. | M6 live test | M8 eval case |
 | 33 | Prompt-injection through KB content survived one live attempt (single sample, one model). | M6 live test | M8 adversarial eval set |
 | 34 | `/api/kb/search` and article writes are unthrottled; each call spends embedding money. | M6 | M8 (rate limits, caps) |
+| 36 | The identity chosen on the entry screen is claimed, not authenticated (same as item 6, now visible in the UI and stated on the entry screen). | M7 | M8 |
+| 37 | The UI polls (about 1 request/s while a turn runs) instead of streaming; SSE would cut requests and show model tokens as they arrive. | M7 | later |
+| 38 | Only the interface is translated (EN/ES); agent replies follow the model, article texts stay as written, and the full-text search is English-only (item 31). | M7 | M8 / later |
+| 39 | In a live run the agent printed the raw approval id (a UUID) in its reply to the employee. Useless to a person and noisy on a phone. | M7 live test | M8 (prompt + eval case) |
+| 40 | The UI has been looked at in Chrome only (desktop width and a 390 px frame), not on a real phone or in Safari/Firefox. No automated visual or accessibility test beyond Testing Library. | M7 | M8 / M9 |
+| 41 | A run that is `running` forever (process killed, item 4) would show a live line on the conversation forever. | M7 | M8 (reaper) |
 | 35 | Changing the embedding model leaves old chunks unsearchable until `seed_kb` re-embeds; vector width (1536) is fixed by the schema. | M6 | documented; M8 re-embed command |
 | 19 | No automated live-model check in CI (costs money, non-deterministic). | M3 | M8 (manual/weekly eval job with its own key) |
 
@@ -88,3 +91,6 @@ listed (struck through) so the history of what the project learned is not lost.
 - ~~Agent opened tickets for refused requests, promised actions it cannot perform and invented a "support
   portal"~~ (M3, prompt rules).
 - ~~GitHub tokens embedded in the remotes of ObraBot and Tribunero~~ (outside this repo).
+
+- ~~UI treatment of provider failures, a busy conversation (409) and unsent messages~~ (M7: `FAILED` and `NOT SENT`
+  stamps, automatic retry with the same `Idempotency-Key`; items 11, 21, 22).
