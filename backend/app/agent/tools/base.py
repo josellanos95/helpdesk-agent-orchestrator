@@ -9,6 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.llm.embeddings import Embedder
 
+# Added to every free-text argument a human will read. The knowledge base is in English, and after reading
+# it the model tended to write a Spanish speaker's ticket in English (M8b eval: 0/5 runs before this).
+IN_EMPLOYEE_LANGUAGE = "Write it in the language the employee writes in, not the language of the articles."
+
 
 @dataclass(frozen=True)
 class ToolContext:

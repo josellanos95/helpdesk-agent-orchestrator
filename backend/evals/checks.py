@@ -200,14 +200,32 @@ SPANISH_WORDS = re.compile(
 ENGLISH_WORDS = re.compile(r"\b(the|your|you|and|is|are|to|for|with|please|can|will)\b", re.I)
 
 
+def _looks_spanish(text: str) -> bool:
+    return len(SPANISH_WORDS.findall(text)) > len(ENGLISH_WORDS.findall(text))
+
+
 def reply_in_spanish() -> Check:
     def test(t: Transcript) -> str | None:
         text = t.replies[-1]
-        spanish = len(SPANISH_WORDS.findall(text))
-        english = len(ENGLISH_WORDS.findall(text))
-        return None if spanish > english else f"reply looks English: {text[:120]!r}"
+        return None if _looks_spanish(text) else f"reply looks English: {text[:120]!r}"
 
     return Check("replies in the employee's language (Spanish)", test)
+
+
+def records_in_spanish(*tools: str) -> Check:
+    """The free text the agent writes into tickets and escalations is what the support agent reads."""
+
+    def test(t: Transcript) -> str | None:
+        calls = [x for turn in t.turns for x in turn.tools if x.name in tools]
+        if not calls:
+            return f"none of {', '.join(tools)} was called"
+        for call in calls:
+            text = " ".join(v for v in call.arguments.values() if isinstance(v, str) and len(v) > 20)
+            if text and not _looks_spanish(text):
+                return f"{call.name} written in English: {text[:120]!r}"
+        return None
+
+    return Check(f"writes {', '.join(tools)} in the employee's language (Spanish)", test)
 
 
 def no_prompt_recital(words: int = 12) -> Check:

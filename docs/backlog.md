@@ -33,8 +33,9 @@ listed (struck through) so the history of what the project learned is not lost.
 | 44 | Spend is checked before a run and recorded after it, so a run can overshoot a cap by its own cost (cents at most). | M8a | accept |
 | 45 | Bring-your-own-key (roadmap) is not built: sessions always spend the demo's key. | M8a | later |
 | 46 | The agent offers to "update the ticket" or "add details" although no tool edits a ticket (seen in the final low-effort run, 1 of 3, and in nano, 2 of 3). Either add a small `add_ticket_note` tool, which the models plainly want, or tighten the prompt. | M8b | M9 or later |
-| 47 | The eval suite is 28 cases with 3 repeats, tuned after seeing failures (disclosed in docs/evals.md). Good as a regression bar, too small to rank models that differ by a case. Real conversations from the demo should become new cases. | M8b | ongoing |
+| 47 | The eval suite is 29 cases with 3 repeats, tuned after seeing failures (disclosed in docs/evals.md). Good as a regression bar, too small to rank models that differ by a case. Real conversations from the demo should become new cases. | M8b | ongoing |
 | 48 | `OPENAI_REASONING_EFFORT` is sent to whatever model is configured; models that do not reason reject it. Set it empty for them (documented in `.env.example`). | M8b | accept |
+| 49 | Asked only whether a request was approved, the agent sometimes opens a ticket "because you are blocked" (1 of 3 after the language fix). Two prompt rules conflict ("blocked: open the ticket in the same reply" vs "do not open a ticket just to find out"); the same run promised to report back when approved, which the case does not check. | M8b | next prompt pass |
 | 35 | Changing the embedding model leaves old chunks unsearchable until `seed_kb` re-embeds; vector width (1536) is fixed by the schema. | M6 | documented; M8 re-embed command |
 | 19 | No automated live-model check in CI (costs money, non-deterministic). | M3 | M8 (manual/weekly eval job with its own key) |
 

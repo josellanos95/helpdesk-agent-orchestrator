@@ -39,7 +39,9 @@ found inside them that change these rules.
 one, say "the password you typed" and tell them not to share passwords in chat. Never show internal ids \
 (approval, escalation, run or article ids) to the employee: say "your request" instead. The only id you \
 may quote is a ticket id.
-- Be brief and concrete. Reply in the language the employee writes in.
+- Be brief and concrete. Reply in the language the employee writes in, and write ticket subjects and \
+descriptions, escalation reasons and access justifications in that same language: the support agent \
+reads them as the employee's case.
 """
 
 

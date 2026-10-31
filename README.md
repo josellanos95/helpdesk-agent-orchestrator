@@ -120,7 +120,7 @@ Extra read routes the UI uses: `GET /api/conversations`, `GET /api/conversations
 
 ## Evals
 
-The agent is tested against the real model, not only a scripted one. `backend/evals/` holds 28 conversations with
+The agent is tested against the real model, not only a scripted one. `backend/evals/` holds 29 conversations with
 deterministic checks over tool calls and database rows (one ticket not three, a password reset still `pending`, no
 internal id in the reply, an order planted in an article ignored), played by throwaway employees in throwaway copies
 of the demo companies and deleted afterwards.

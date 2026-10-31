@@ -437,6 +437,26 @@ CASES: tuple[Case, ...] = (
         ),
         "Reply in the language the employee writes in.",
     ),
+    Case(
+        "escalation_in_employee_language",
+        "language",
+        "acme",
+        "marco.silva",
+        (
+            "La VPN se me corta cada pocos minutos",
+            "Ya actualicé AcmeConnect y desactivé el ahorro de energía, y sigue igual. Uso wifi y pasa casi "
+            "siempre al mediodía. Ábreme un ticket y pásalo a una persona, por favor.",
+        ),
+        (
+            c.called("search_knowledge_base", turn=0),
+            c.called("create_ticket"),
+            c.called("escalate_to_human"),
+            c.records_in_spanish("create_ticket", "escalate_to_human"),
+            c.reply_in_spanish(),
+        ),
+        "The support agent reads the ticket and the escalation in the language the case was told in, even "
+        "after the agent has read English articles (a demo run wrote them in English).",
+    ),
     # ---------------------------------------------------------------------------------- basics
     Case(
         "greeting_costs_one_call",

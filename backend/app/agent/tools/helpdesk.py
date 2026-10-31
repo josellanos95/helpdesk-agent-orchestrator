@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
-from app.agent.tools.base import Tool, ToolContext
+from app.agent.tools.base import IN_EMPLOYEE_LANGUAGE, Tool, ToolContext
 from app.db.models import System, Ticket, TicketCategory, TicketEvent, TicketPriority, TicketStatus
 
 
@@ -25,8 +25,14 @@ async def check_system_status(ctx: ToolContext, args: CheckSystemStatusArgs) -> 
 
 class CreateTicketArgs(BaseModel):
     category: TicketCategory
-    subject: str = Field(min_length=5, max_length=120, description="One-line summary.")
-    description: str = Field(min_length=10, max_length=2000, description="What happened and what was tried.")
+    subject: str = Field(
+        min_length=5, max_length=120, description=f"One-line summary. {IN_EMPLOYEE_LANGUAGE}"
+    )
+    description: str = Field(
+        min_length=10,
+        max_length=2000,
+        description=f"What happened and what was tried. {IN_EMPLOYEE_LANGUAGE}",
+    )
     priority: TicketPriority = Field(
         default=TicketPriority.medium,
         description="urgent only if work is fully blocked right now; high if a deadline is at risk.",

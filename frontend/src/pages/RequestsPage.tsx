@@ -82,7 +82,8 @@ export function RequestsPage() {
                   <StatusTag label={t(`status.${ticket.status}` as StringKey)} />
                 </span>
                 <span className="item-sub block">
-                  {ticket.category.replace(/_/g, ' ')} · {t('req.priority', { level: ticket.priority })} ·{' '}
+                  {t(`category.${ticket.category}` as StringKey)} ·{' '}
+                  {t('req.priority', { level: t(`level.${ticket.priority}` as StringKey) })} ·{' '}
                   <span className="num">{ago(ticket.created_at, locale)}</span>
                 </span>
               </>

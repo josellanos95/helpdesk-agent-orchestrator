@@ -128,6 +128,26 @@ def test_cites_ticket_id_and_spanish():
     assert c.reply_in_spanish()(transcript(turn(english)))
 
 
+def test_records_in_spanish_reads_what_the_agent_wrote_into_the_tools():
+    def with_args(args: dict) -> Transcript:
+        t = turn()
+        t.tools = [ToolRecord("create_ticket", {"priority": "high", **args}, {})]
+        return transcript(t)
+
+    check = c.records_in_spanish("create_ticket", "escalate_to_human")
+    spanish = {
+        "subject": "Pantalla del portátil en negro",
+        "description": "La pantalla de su portátil está en negro y no puede trabajar",
+    }
+    english = {
+        "subject": "Laptop screen is black",
+        "description": "The screen of the laptop is black and you cannot work",
+    }
+    assert check(with_args(spanish)) is None
+    assert "written in English" in check(with_args(english))
+    assert "was called" in check(transcript(turn()))
+
+
 # ------------------------------------------------------------------------------------- the patterns
 
 HONEST = [
