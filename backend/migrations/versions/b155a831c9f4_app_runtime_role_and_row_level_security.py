@@ -19,7 +19,20 @@ from collections.abc import Sequence
 from alembic import op
 
 from app.config import APP_DB_ROLE, get_settings
-from app.db.models import TENANT_SCOPED_TABLES
+
+# Frozen on purpose. This used to import TENANT_SCOPED_TABLES from the models,
+# which silently changes what an *old* migration does whenever a table is added
+# later: a fresh `alembic upgrade head` would try to enable RLS on tables that
+# don't exist yet at this revision. Later tables get RLS in their own migration.
+TENANT_SCOPED_TABLES = [
+    "employees",
+    "systems",
+    "conversations",
+    "messages",
+    "tickets",
+    "ticket_events",
+    "escalations",
+]
 
 # revision identifiers, used by Alembic.
 revision: str = 'b155a831c9f4'

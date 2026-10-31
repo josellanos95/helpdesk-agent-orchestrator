@@ -13,7 +13,8 @@ Multi-tenant AI agent for IT helpdesk support — tool use / function calling, R
 | M0 | Scaffold (FastAPI, Vite + React + TS + Tailwind) | done |
 | M1 | Data model with real tenant isolation via Postgres RLS ([ADR 0001](docs/adr/0001-multi-tenant-isolation-via-rls.md)) | done |
 | M2 | Isolation tests, migration round-trip test, CI | done |
-| M3+ | Agent core, idempotency, approvals, knowledge base, UI, evals | planned |
+| M3 | Agent core: tool-calling loop, persisted messages, per-run traces ([ADR 0002](docs/adr/0002-agent-loop.md)) | done, live OpenAI smoke test pending |
+| M4+ | Idempotency, approvals, knowledge base, UI, evals | planned |
 
 ## Local development
 
@@ -31,6 +32,21 @@ cd ../frontend
 npm install
 npm run dev
 ```
+
+## API (M3)
+
+All routes take the tenant in an `X-Tenant-Id` header (temporary; real auth comes in M8).
+
+| Route | |
+|---|---|
+| `GET /api/employees` | Employees of the tenant (for the demo picker) |
+| `POST /api/conversations` | Start a conversation as an employee |
+| `POST /api/conversations/{id}/messages` | Send a message; runs the agent and returns the reply plus run totals |
+| `GET /api/conversations/{id}/messages` | Full history, including tool calls and results |
+| `GET /api/runs/{id}` | The trace: every model call and tool call with latency, tokens and errors |
+
+Try the real agent from a terminal (needs `OPENAI_API_KEY` in `backend/.env`):
+`python -m scripts.chat_cli --tenant acme --employee alice --trace`
 
 ## Tests
 

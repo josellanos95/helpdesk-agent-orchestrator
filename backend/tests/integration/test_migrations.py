@@ -68,3 +68,19 @@ async def test_downgrade_leaves_nothing_behind_and_upgrade_works_again():
 
     assert ENUM_TYPES <= await _existing_enums()
     assert await _role_exists()
+
+
+async def test_models_and_migrations_agree():
+    """If someone edits a model and forgets the migration (or the reverse), this lists the drift."""
+    from alembic.autogenerate import compare_metadata
+    from alembic.migration import MigrationContext
+
+    from app.db.base import Base
+    from app.db.session import admin_engine
+
+    def diff(sync_conn):
+        return compare_metadata(MigrationContext.configure(sync_conn), Base.metadata)
+
+    async with admin_engine.connect() as conn:
+        drift = await conn.run_sync(diff)
+    assert drift == []

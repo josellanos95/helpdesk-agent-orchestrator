@@ -10,6 +10,8 @@ from alembic.config import Config
 from sqlalchemy import delete
 
 from app.db.models import (
+    AgentRun,
+    AgentStep,
     Conversation,
     Employee,
     Escalation,
@@ -126,6 +128,13 @@ async def _create_tenant_with_rows(session, label: str) -> TenantData:
 
     session.add(TicketEvent(tenant_id=tenant.id, ticket_id=ticket.id, event_type="created", payload={}))
     session.add(Escalation(tenant_id=tenant.id, ticket_id=ticket.id, reason="because"))
+
+    run = AgentRun(tenant_id=tenant.id, conversation_id=conversation.id, model="test-model")
+    session.add(run)
+    await session.flush()
+    session.add(
+        AgentStep(tenant_id=tenant.id, run_id=run.id, step_index=0, kind="llm", name="test-model")
+    )
     await session.flush()
     return TenantData(id=tenant.id, ticket_id=ticket.id, employee_id=employee.id)
 

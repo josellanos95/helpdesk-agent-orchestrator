@@ -4,7 +4,10 @@ from collections.abc import AsyncGenerator
 from fastapi import Depends, Header, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.db.session import tenant_scoped_session
+from app.llm.base import LLMClient
+from app.llm.openai_client import OpenAIClient
 
 TENANT_HEADER = "X-Tenant-Id"
 
@@ -19,3 +22,11 @@ async def get_tenant_id(x_tenant_id: str = Header(..., alias=TENANT_HEADER)) -> 
 async def get_db(tenant_id: uuid.UUID = Depends(get_tenant_id)) -> AsyncGenerator[AsyncSession]:
     async for session in tenant_scoped_session(tenant_id):
         yield session
+
+
+def get_llm() -> LLMClient:
+    """Overridden in tests with a scripted client. M8 adds per-request bring-your-own-key here."""
+    settings = get_settings()
+    if not settings.openai_api_key:
+        raise HTTPException(status_code=503, detail="The LLM is not configured (OPENAI_API_KEY is missing).")
+    return OpenAIClient(api_key=settings.openai_api_key, model=settings.openai_model)
