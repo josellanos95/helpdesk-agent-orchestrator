@@ -77,3 +77,12 @@ def test_every_registered_tool_is_accounted_for_above():
         "reset_password",
         "grant_system_access",
     }
+
+
+def test_embedding_cost_scales_with_text_and_unknown_models_are_free():
+    from app.llm.pricing import embedding_cost_usd
+
+    short = embedding_cost_usd("text-embedding-3-small", "x" * 400)  # ~100 tokens
+    assert short == Decimal("0.02") * 100 / Decimal(1_000_000)
+    assert embedding_cost_usd("text-embedding-3-small", "x" * 4000) == short * 10
+    assert embedding_cost_usd("hashing", "anything") == 0

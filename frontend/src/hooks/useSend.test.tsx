@@ -95,4 +95,20 @@ describe('useSend', () => {
     })
     expect(result.current.outbox).toMatchObject({ state: 'not_sent', error: 'rejected', detail: 'content too long' })
   })
+
+  it('keeps a message the server limited as NOT SENT and remembers why', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => answer(429, { detail: { code: 'budget_exhausted_session', message: 'Used up.' } })),
+    )
+    const { result } = renderHook(() => useSend('t1'), { wrapper })
+    await act(async () => {
+      await result.current.send('c1', 'x', 0)
+    })
+    expect(result.current.outbox).toMatchObject({
+      state: 'not_sent',
+      error: 'limited',
+      code: 'budget_exhausted_session',
+    })
+  })
 })

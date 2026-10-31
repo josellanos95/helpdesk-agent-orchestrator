@@ -1,6 +1,7 @@
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any
 
 from pydantic import BaseModel
@@ -20,6 +21,8 @@ class ToolContext:
     conversation_id: uuid.UUID
     # Turns text into vectors for knowledge-base search; None when embeddings are not configured.
     embedder: Embedder | None = None
+    # Adds a cost that is not a model call (an embedding) to the run's total, so caps see it.
+    charge: Callable[[Decimal], None] = lambda usd: None
 
 
 @dataclass(frozen=True)

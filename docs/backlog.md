@@ -8,9 +8,7 @@ listed (struck through) so the history of what the project learned is not lost.
 | # | Finding | Found in | Fix in |
 |---|---|---|---|
 | 2 | The ledger only stops repeats of the same `tool_call_id`. A model that asks twice with two different ids still opens two tickets. | M4 | M8 (eval case: exactly one ticket) |
-| 4 | Runs stay `running` if the process is killed outright (no handler runs). Exceptions already mark the run failed. | M4 | M8 (reaper for runs older than the lock TTL) |
-| 5 | `Idempotency-Key` rows never expire. | M4 design | M8 |
-| 6 | Tenant identity is the `X-Tenant-Id` header and the acting support agent is the `approver_id` in the body: RLS stops query bugs, not impersonation. The role and self-approval checks are real but the identity is claimed. | M1, M5 | M8 (signed demo tokens carrying tenant and employee) |
+| 6 | Identity is still *chosen*: anyone can mint a signed session for any fictitious person (M8a made the server enforce that choice, ADR 0007). Header mode, used in development and tests, still trusts the caller and must never be exposed. | M1, M5 | accept for the demo; real accounts only if the product leaves demo status |
 | 7 | Latency: 20-30 s for a full turn with `gpt-5-mini` (the last model call alone up to 15 s). | M3 live test | M8 (compare models/reasoning effort), M7 (stream the reply) |
 | 8 | The model marks "degraded" systems `urgent` although the tool says urgent is for fully blocked work. | M3 live test | M8 (eval case) |
 | 9 | Prompt fixes (no ticket for refused requests, no invented capabilities) were checked on single samples only. | M3 live test | M8 (eval suite) |
@@ -22,24 +20,25 @@ listed (struck through) so the history of what the project learned is not lost.
 | 16 | GitHub repository and local folder still named `helpdesk-agent-orchestrator`; README badge and Vercel project use the old name. | M2 | M9 (rename together with deployment) |
 | 17 | Downgrade/upgrade migration test is skipped locally when another database on the server uses the `app_runtime` role. | M2 | none (runs in CI) |
 | 20 | The conversation lock is a TTL lock, not a fencing token: a run that loses it can still finish the step it is in. Bounded by per-step transactions and the ledger. | M4 | accept / revisit if multi-instance |
-| 23 | Expired approvals stay `pending` until someone tries to decide them and the employee is never told. | M5 | M8 (reaper that closes and announces them) |
 | 24 | Escalations have no assignee; who acknowledged one only exists in the audit log (the Queue screen cannot show it either). | M5 | M8 |
 | 25 | `reset_password` / `grant_system_access` are simulated (audit record only); identity verification of the requester is delegated to the human approver. | M5 | accept (document in README) |
 | 26 | Approval behaviour is only spot-checked with the live model (7 turns, all as intended after the fixes below). Needs eval cases: claims success while pending? re-asks? skips approval under pressure? | M5 | M8 eval cases |
 | 27 | In a live run the agent offered to "request temporary access to a backup system" unprompted (offers are free, but it should only offer what the tools can do for that employee). | M5 live test | M8 (eval case) |
 | 28 | Retrieval gold set: 26 questions written by the same author as the corpus, so it flatters. Needs more, harder, independently written questions, tracked per release. | M6 | M8 |
 | 29 | No reranker. Not needed at 18 articles; revisit when a tenant's KB grows. | M6 | M8 / later |
-| 30 | Query embeddings are made inside the agent step's transaction (ADR 0005); embedding spend is in no cost total or cap. | M6 | M8 (pre-embed outside the step; count it) |
+| 30 | Query embeddings are made inside the agent step's transaction (ADR 0005). Their cost is now counted in the run and the caps (M8a); it is an estimate (4 characters per token), and the embedding still happens inside the step. | M6 | M8b (pre-embed outside the step) |
 | 31 | Full-text side is `english` only; a Spanish KB loses the keyword benefit. | M6 | M8 / when multi-language |
 | 32 | The agent says things like "I opened a ticket with HR" although tickets have no team routing. Overclaim by omission. | M6 live test | M8 eval case |
 | 33 | Prompt-injection through KB content survived one live attempt (single sample, one model). | M6 live test | M8 adversarial eval set |
-| 34 | `/api/kb/search` and article writes are unthrottled; each call spends embedding money. | M6 | M8 (rate limits, caps) |
-| 36 | The identity chosen on the entry screen is claimed, not authenticated (same as item 6, now visible in the UI and stated on the entry screen). | M7 | M8 |
 | 37 | The UI polls (about 1 request/s while a turn runs) instead of streaming; SSE would cut requests and show model tokens as they arrive. | M7 | later |
 | 38 | Only the interface is translated (EN/ES); agent replies follow the model, article texts stay as written, and the full-text search is English-only (item 31). | M7 | M8 / later |
-| 39 | In a live run the agent printed the raw approval id (a UUID) in its reply to the employee. Useless to a person and noisy on a phone. | M7 live test | M8 (prompt + eval case) |
+| 39 | In a live run the agent printed the raw approval id (a UUID) to the employee. M8a added a prompt rule; it has not been checked against the live model yet. | M7 live test | M8b (eval case) |
 | 40 | The UI has been looked at in Chrome only (desktop width and a 390 px frame), not on a real phone or in Safari/Firefox. No automated visual or accessibility test beyond Testing Library. | M7 | M8 / M9 |
-| 41 | A run that is `running` forever (process killed, item 4) would show a live line on the conversation forever. | M7 | M8 (reaper) |
+| 41 | Sessions cannot be revoked, only expire (12 h); rotating `DEMO_TOKEN_SECRET` kills all of them. | M8a | accept |
+| 42 | When the daily budget is spent the demo is read-only until midnight UTC. A replay mode with recorded runs (roadmap) would keep it showable. | M8a | M8b / M9 |
+| 43 | The per-IP daily cap is shared by everyone behind one NAT (a company network). Raise or disable `IP_DAILY_BUDGET_USD` if visitors report it. | M8a | watch after M9 |
+| 44 | Spend is checked before a run and recorded after it, so a run can overshoot a cap by its own cost (cents at most). | M8a | accept |
+| 45 | Bring-your-own-key (roadmap) is not built: sessions always spend the demo's key. | M8a | M8b / later |
 | 35 | Changing the embedding model leaves old chunks unsearchable until `seed_kb` re-embeds; vector width (1536) is fixed by the schema. | M6 | documented; M8 re-embed command |
 | 19 | No automated live-model check in CI (costs money, non-deterministic). | M3 | M8 (manual/weekly eval job with its own key) |
 
@@ -94,3 +93,8 @@ listed (struck through) so the history of what the project learned is not lost.
 
 - ~~UI treatment of provider failures, a busy conversation (409) and unsent messages~~ (M7: `FAILED` and `NOT SENT`
   stamps, automatic retry with the same `Idempotency-Key`; items 11, 21, 22).
+
+- ~~Runs stay `running` if the process is killed outright (no handler runs). Exceptions already mark the run failed.~~ (M8a: the sweeper closes runs left `running` for over 10 minutes)
+- ~~`Idempotency-Key` rows never expire.~~ (M8a: the sweeper drops idempotency keys older than 24 h)
+- ~~Expired approvals stay `pending` until someone tries to decide them and the employee is never told.~~ (M8a: the sweeper expires unsigned approvals and tells the employee in the conversation)
+- ~~`/api/kb/search` and article writes are unthrottled; each call spends embedding money.~~ (M8a: per-session rate limits and spend caps on search and article writes)
