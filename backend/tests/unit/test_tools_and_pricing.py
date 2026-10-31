@@ -43,3 +43,35 @@ def test_gpt_5_nano_is_not_mistaken_for_gpt_5_mini():
 def test_unknown_models_cost_nothing_and_are_flagged(model):
     assert not is_priced(model)
     assert cost_usd(model, Usage(1000, 1000)) == Decimal(0)
+
+
+def test_exactly_the_sensitive_tools_require_approval():
+    """Adding a tool forces a decision here: does it change something a human should sign off on?"""
+    registry = default_registry()
+    needs_approval = {
+        name
+        for name in (
+            "check_system_status",
+            "create_ticket",
+            "list_my_tickets",
+            "escalate_to_human",
+            "list_my_requests",
+            "reset_password",
+            "grant_system_access",
+        )
+        if registry.get(name).requires_approval
+    }
+    assert needs_approval == {"reset_password", "grant_system_access"}
+
+
+def test_every_registered_tool_is_accounted_for_above():
+    names = {s["function"]["name"] for s in default_registry().schemas()}
+    assert names == {
+        "check_system_status",
+        "create_ticket",
+        "list_my_tickets",
+        "escalate_to_human",
+        "list_my_requests",
+        "reset_password",
+        "grant_system_access",
+    }

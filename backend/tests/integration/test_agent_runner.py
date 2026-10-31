@@ -37,9 +37,7 @@ async def world(two_tenants):
     return two_tenants
 
 
-async def converse(
-    world, as_tenant, llm, text, *, conversation_id=None, registry=None, heartbeat=None, **kw
-):
+async def converse(world, as_tenant, llm, text, *, conversation_id=None, registry=None, heartbeat=None, **kw):
     """One user turn as tenant A's employee. Returns (result, conversation_id)."""
     if conversation_id is None:
         async with as_tenant(world.a.id) as session:
@@ -105,6 +103,10 @@ async def test_system_prompt_names_the_tenant_and_the_employee(world, as_tenant)
         "check_system_status",
         "create_ticket",
         "list_my_tickets",
+        "escalate_to_human",
+        "list_my_requests",
+        "reset_password",
+        "grant_system_access",
     }
 
 

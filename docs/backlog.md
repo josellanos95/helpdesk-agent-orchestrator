@@ -10,7 +10,7 @@ listed (struck through) so the history of what the project learned is not lost.
 | 2 | The ledger only stops repeats of the same `tool_call_id`. A model that asks twice with two different ids still opens two tickets. | M4 | M8 (eval case: exactly one ticket) |
 | 4 | Runs stay `running` if the process is killed outright (no handler runs). Exceptions already mark the run failed. | M4 | M8 (reaper for runs older than the lock TTL) |
 | 5 | `Idempotency-Key` rows never expire. | M4 design | M8 |
-| 6 | Tenant identity is the `X-Tenant-Id` header: RLS stops query bugs, not impersonation. | M1 | M8 (signed demo tokens) |
+| 6 | Tenant identity is the `X-Tenant-Id` header and the acting support agent is the `approver_id` in the body: RLS stops query bugs, not impersonation. The role and self-approval checks are real but the identity is claimed. | M1, M5 | M8 (signed demo tokens carrying tenant and employee) |
 | 7 | Latency: 20-30 s for a full turn with `gpt-5-mini` (the last model call alone up to 15 s). | M3 live test | M8 (compare models/reasoning effort), M7 (stream the reply) |
 | 8 | The model marks "degraded" systems `urgent` although the tool says urgent is for fully blocked work. | M3 live test | M8 (eval case) |
 | 9 | Prompt fixes (no ticket for refused requests, no invented capabilities) were checked on single samples only. | M3 live test | M8 (eval suite) |
@@ -24,6 +24,12 @@ listed (struck through) so the history of what the project learned is not lost.
 | 17 | Downgrade/upgrade migration test is skipped locally when another database on the server uses the `app_runtime` role. | M2 | none (runs in CI) |
 | 20 | The conversation lock is a TTL lock, not a fencing token: a run that loses it can still finish the step it is in. Bounded by per-step transactions and the ledger. | M4 | accept / revisit if multi-instance |
 | 21 | A conversation can only be touched through the API process that holds the lock; a user message rejected with 409 is lost and the UI must offer to resend it. | M4 | M7 |
+| 22 | Over HTTP a double-clicked approval gets one 200 and some 409 (conversation lock); the UI must retry on 409. | M5 | M7 |
+| 23 | Expired approvals stay `pending` until someone tries to decide them and the employee is never told. | M5 | M8 (reaper that closes and announces them) |
+| 24 | Escalations have no assignee; who acknowledged one only exists in the audit log. | M5 | M7 |
+| 25 | `reset_password` / `grant_system_access` are simulated (audit record only); identity verification of the requester is delegated to the human approver. | M5 | accept (document in README) |
+| 26 | Approval behaviour is only spot-checked with the live model (7 turns, all as intended after the fixes below). Needs eval cases: claims success while pending? re-asks? skips approval under pressure? | M5 | M8 eval cases |
+| 27 | In a live run the agent offered to "request temporary access to a backup system" unprompted (offers are free, but it should only offer what the tools can do for that employee). | M5 live test | M8 (eval case) |
 | 19 | No automated live-model check in CI (costs money, non-deterministic). | M3 | M8 (manual/weekly eval job with its own key) |
 
 ## Needs the owner
@@ -34,6 +40,21 @@ listed (struck through) so the history of what the project learned is not lost.
 - Optional cheaper provider (DeepSeek, Kimi, ...): send an OpenAI-compatible base URL, model name and prices.
 
 ## Fixed
+
+- ~~Live run: after an approval the model said "I couldn't verify that the reset completed" and opened a
+  needless ticket, ignoring the approval message in the conversation~~ (M5: `list_my_requests` tool + prompt;
+  re-run: one tool call, correct answer, no ticket).
+
+- ~~**Tests run with explicit paths used the development database.**~~ (M5, found 2026-10-31.) The harness set
+  the test `DATABASE_URL` in `pytest_configure`, which pytest calls *after* importing the conftest files of
+  paths named on the command line, so `pytest tests/integration/test_x.py` cached the settings and built the
+  engines against the development database. The full-suite command (`pytest`) was unaffected. Effect: the
+  seed test deleted the demo tenants `acme`, `globex` and `initech` from the dev DB (fictitious data, restored
+  with `python -m scripts.seed_demo_data`; the earlier smoke-test conversation and tickets are gone), and
+  earlier explicit-path runs created and removed test rows there. Fix: configuration now happens when
+  `tests/conftest.py` is imported, plus a session fixture that aborts the run unless every setting and engine
+  points at a `*_test` database and Redis db 15; both are tested.
+- ~~`audit_log` was append-only by convention only~~ (M5: the app role has no UPDATE/DELETE, tested).
 
 - ~~Transaction held open across every model call~~ (M4, a transaction per step; a test watches `pg_stat_activity`).
 - ~~Retried requests and replayed tool calls could run twice~~ (M4: `Idempotency-Key`, tool ledger).

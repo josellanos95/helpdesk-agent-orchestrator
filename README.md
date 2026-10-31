@@ -15,7 +15,8 @@ Multi-tenant AI agent for IT helpdesk support — tool use / function calling, R
 | M2 | Isolation tests, migration round-trip test, CI | done |
 | M3 | Agent core: tool-calling loop, persisted messages, per-run traces ([ADR 0002](docs/adr/0002-agent-loop.md)) | done, live OpenAI smoke test pending |
 | M4 | Short transactions, exactly-once tool calls, per-conversation lock, `Idempotency-Key` ([ADR 0003](docs/adr/0003-idempotency-locks-short-transactions.md)) | done |
-| M5+ | Approvals, knowledge base, UI, evals | planned |
+| M5 | Human approval of sensitive actions, escalation queue, audit log ([ADR 0004](docs/adr/0004-human-approvals-and-escalation.md)) | done |
+| M6+ | Knowledge base, UI, evals | planned |
 
 ## Local development
 
@@ -46,6 +47,15 @@ All routes take the tenant in an `X-Tenant-Id` header (temporary; real auth come
 | `GET /api/conversations/{id}/messages` | Full history, including tool calls and results |
 | `GET /api/runs/{id}` | The trace: every model call and tool call with latency, tokens and errors |
 
+The human side (until real authentication exists the acting support agent is sent as `approver_id`):
+
+| Route | |
+|---|---|
+| `GET /api/approvals?status=pending\|approved\|rejected\|expired\|all` | Sensitive requests waiting for a decision |
+| `POST /api/approvals/{id}/decision` | `{decision: approve\|reject, approver_id, note}`; approving runs the action once |
+| `GET /api/escalations?status=open\|all\|pending\|acknowledged\|resolved` | The human support queue |
+| `POST /api/escalations/{id}/acknowledge` / `resolve` | Work an escalation |
+
 `POST .../messages` accepts an optional `Idempotency-Key` header (a retry with the same key and body replays the
 stored reply instead of running the agent again). It answers `409` while another message of the same conversation
 is being processed, and `503` if Redis is unavailable.
@@ -67,8 +77,10 @@ pytest
 ```
 
 The suite needs Postgres and Redis (`docker compose up -d`). It talks to the real ones — Row Level Security is a database feature, so a mock would prove
-nothing. It uses a separate `<dbname>_test` database (created on demand from `DATABASE_URL`), never
-the development one.
+nothing. It uses a separate `<dbname>_test` database and Redis database 15 (created on demand from `DATABASE_URL`), never
+the development one. This is enforced, not just a convention: the harness points the app at the test
+services when `tests/conftest.py` is imported, and a session fixture aborts the run if any engine or setting
+still names a database that does not end in `_test`.
 
 What the isolation tests cover: the runtime role cannot bypass RLS; RLS is enabled, forced and has a
 policy on every tenant table; any new table with a `tenant_id` must be registered (otherwise the
