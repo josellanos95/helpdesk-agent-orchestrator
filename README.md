@@ -19,7 +19,7 @@ Multi-tenant AI agent for IT helpdesk support — tool use / function calling, R
 | M6 | Per-tenant knowledge base: hybrid search (pgvector + full text), cited answers ([ADR 0005](docs/adr/0005-knowledge-base-and-hybrid-search.md)) | done |
 | M7 | Responsive web UI: the agent's work printed live as an audit listing ([ADR 0006](docs/adr/0006-web-ui-the-audit-listing.md)) | done |
 | M8a | Demo protection: signed sessions, server-enforced roles, rate limits and spend caps ([ADR 0007](docs/adr/0007-demo-sessions-limits-and-budget.md)) | done |
-| M8b | Evals and model comparison | planned |
+| M8b | Behaviour evals, model and reasoning-effort comparison, bigger retrieval set ([ADR 0008](docs/adr/0008-agent-evals.md), [results](docs/evals.md)) | done |
 | M9 | Deploy | planned |
 
 ## Local development
@@ -86,9 +86,11 @@ python -m scripts.seed_kb --offline     # free, lexical-only stand-in, for worki
 python -m scripts.eval_retrieval --verbose
 ```
 
-Measured with `text-embedding-3-small` on 26 questions (20 answerable, 6 not, one asking a company about
-another's content): **hit@1 100%, hit@3 100%, 0 of 6 unanswerable questions returned noise** at the default
-`KB_MIN_SIMILARITY=0.30`. Small set, same author as the corpus: a calibration, not a guarantee (ADR 0005).
+Measured with `text-embedding-3-small` on 63 questions (45 answerable, 18 not: paraphrases, typos, Spanish,
+undocumented topics and another company's topics): **hit@1 100%, hit@3 100%, no answer missed** at the default
+`KB_MIN_SIMILARITY=0.30`, at the price of 5 of the 18 unanswerable questions returning an irrelevant passage
+that the agent has to recognise (it did, in every eval run). Per-kind numbers and the threshold trade-off are in
+[docs/evals.md](docs/evals.md). Same author as the corpus: a calibration, not a guarantee (ADR 0005).
 
 | Route | |
 |---|---|
@@ -115,6 +117,24 @@ Pick a fictitious company and a person. The server mints a signed session for th
   Spanish for the interface, light and dark themes.
 
 Extra read routes the UI uses: `GET /api/conversations`, `GET /api/conversations/{id}/runs`, `GET /api/tickets`.
+
+## Evals
+
+The agent is tested against the real model, not only a scripted one. `backend/evals/` holds 28 conversations with
+deterministic checks over tool calls and database rows (one ticket not three, a password reset still `pending`, no
+internal id in the reply, an order planted in an article ignored), played by throwaway employees in throwaway copies
+of the demo companies and deleted afterwards.
+
+```bash
+cd backend
+python -m scripts.run_evals --repeat 3 --max-usd 0.30        # about 15 cents with the default model
+python -m scripts.run_evals --regrade evals/results/*.json   # re-grade saved runs, free
+```
+
+Result for the shipped configuration, `gpt-5-mini` with `OPENAI_REASONING_EFFORT=low`: **83 of 84 runs pass, median
+4.9 s and $0.0015 per turn**; the same model at its default effort is twice as slow and twice as expensive for the
+same pass rate, and `gpt-5-nano` fails guardrails the larger model holds. The comparison, what the evals caught, what
+they could not show and what they cost (about $1.9) are in [docs/evals.md](docs/evals.md).
 
 ## Demo protection
 

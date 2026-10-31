@@ -46,7 +46,6 @@ async def search_knowledge_base(ctx: ToolContext, args: SearchKnowledgeBaseArgs)
         "results": [
             {
                 "article": hit.title,
-                "article_id": str(hit.article_id),
                 "passage": hit.content[:PASSAGE_CHARS],
                 "matched_by": (
                     "meaning and words"

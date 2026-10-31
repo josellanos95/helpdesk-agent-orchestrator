@@ -47,7 +47,6 @@ async def escalate_to_human(ctx: ToolContext, args: EscalateArgs) -> dict:
     )
     if open_escalation is not None:
         return {
-            "escalation_id": str(open_escalation.id),
             "ticket_id": str(ticket.id),
             "status": open_escalation.status.value,
             "already_escalated": True,
@@ -69,7 +68,6 @@ async def escalate_to_human(ctx: ToolContext, args: EscalateArgs) -> dict:
     )
     await ctx.session.flush()
     return {
-        "escalation_id": str(escalation.id),
         "ticket_id": str(ticket.id),
         "status": escalation.status.value,
         "message": "The ticket is now in the human support queue.",

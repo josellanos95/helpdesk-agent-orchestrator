@@ -38,6 +38,7 @@ class Settings(BaseSettings):
         if v.startswith("postgresql://"):
             v = "postgresql+asyncpg://" + v[len("postgresql://") :]
         return v
+
     # Password for the app_runtime role. Same value must be used when the
     # migration creates/updates the role (see migrations) and here to build
     # the runtime connection string.
@@ -46,6 +47,16 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     openai_api_key: str | None = None
     openai_model: str = "gpt-5-mini"
+    # How hard a reasoning model thinks before answering. "low" halves latency and cost with the same pass
+    # rate on the evals (docs/evals.md). Empty (OPENAI_REASONING_EFFORT=) sends nothing: needed for models
+    # that do not reason, which reject the parameter.
+    openai_reasoning_effort: Literal["minimal", "low", "medium", "high"] | None = "low"
+
+    @field_validator("openai_reasoning_effort", mode="before")
+    @classmethod
+    def _blank_effort_means_model_default(cls, value: object) -> object:
+        return value or None
+
     # Any OpenAI-compatible endpoint (DeepSeek, Kimi, OpenRouter, a local server...). None = OpenAI.
     openai_base_url: str | None = None
     # Embeddings are configured apart from chat: not every chat provider offers them. The vector

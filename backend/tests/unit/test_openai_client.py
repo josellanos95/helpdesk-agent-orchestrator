@@ -102,3 +102,25 @@ def test_each_call_is_bounded_well_below_the_conversation_lock_ttl():
     assert client._client.max_retries == MAX_RETRIES
     worst_case = REQUEST_TIMEOUT_SECONDS * (MAX_RETRIES + 1)
     assert worst_case < Settings(_env_file=None).conversation_lock_ttl_seconds
+
+
+async def test_reasoning_effort_is_sent_only_when_asked_for():
+    default, low = [], []
+    await make_client(default).complete(messages=[{"role": "user", "content": "hi"}], tools=[])
+    client = OpenAIClient(
+        api_key="sk-test",
+        model="gpt-5-mini",
+        reasoning_effort="low",
+        http_client=httpx.AsyncClient(
+            transport=httpx.MockTransport(
+                lambda request: (
+                    low.append(json.loads(request.content)),
+                    httpx.Response(200, json=COMPLETION),
+                )[1]
+            )
+        ),
+    )
+    await client.complete(messages=[{"role": "user", "content": "hi"}], tools=[])
+
+    assert "reasoning_effort" not in default[0]["body"]
+    assert low[0]["reasoning_effort"] == "low"

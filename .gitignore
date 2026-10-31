@@ -226,3 +226,6 @@ frontend/dist/
 # Impeccable session logs (the config, surface briefs, DESIGN sidecar and review screenshots are kept)
 .impeccable/questions/
 .impeccable/build/
+
+# Eval transcripts (regenerable; curated numbers live in docs/evals.md)
+/backend/evals/results/

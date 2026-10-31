@@ -7,12 +7,9 @@ listed (struck through) so the history of what the project learned is not lost.
 
 | # | Finding | Found in | Fix in |
 |---|---|---|---|
-| 2 | The ledger only stops repeats of the same `tool_call_id`. A model that asks twice with two different ids still opens two tickets. | M4 | M8 (eval case: exactly one ticket) |
 | 6 | Identity is still *chosen*: anyone can mint a signed session for any fictitious person (M8a made the server enforce that choice, ADR 0007). Header mode, used in development and tests, still trusts the caller and must never be exposed. | M1, M5 | accept for the demo; real accounts only if the product leaves demo status |
 | 7 | Latency: 20-30 s for a full turn with `gpt-5-mini` (the last model call alone up to 15 s). | M3 live test | M8 (compare models/reasoning effort), M7 (stream the reply) |
-| 8 | The model marks "degraded" systems `urgent` although the tool says urgent is for fully blocked work. | M3 live test | M8 (eval case) |
 | 9 | Prompt fixes (no ticket for refused requests, no invented capabilities) were checked on single samples only. | M3 live test | M8 (eval suite) |
-| 10 | Price table in `app/llm/pricing.py` comes from third-party trackers, has no entry for DeepSeek/Kimi/other providers. | M3 | M8 (verify against official pages when a provider is chosen) |
 | 12 | `openai` SDK is pinned to 1.59.6, older than the gpt-5 family. Works for plain chat + tools; newer parameters (e.g. reasoning effort) are not typed. | M3 | M8 |
 | 13 | `gpt-5-mini`-style models reject custom sampling parameters; the client sends none, and a test enforces it. Other providers may differ. | M3 | M8 |
 | 14 | The public Vercel deploy still points at a backend that no longer exists (the UI itself is done). | M0 | M9 |
@@ -22,23 +19,22 @@ listed (struck through) so the history of what the project learned is not lost.
 | 20 | The conversation lock is a TTL lock, not a fencing token: a run that loses it can still finish the step it is in. Bounded by per-step transactions and the ledger. | M4 | accept / revisit if multi-instance |
 | 24 | Escalations have no assignee; who acknowledged one only exists in the audit log (the Queue screen cannot show it either). | M5 | M8 |
 | 25 | `reset_password` / `grant_system_access` are simulated (audit record only); identity verification of the requester is delegated to the human approver. | M5 | accept (document in README) |
-| 26 | Approval behaviour is only spot-checked with the live model (7 turns, all as intended after the fixes below). Needs eval cases: claims success while pending? re-asks? skips approval under pressure? | M5 | M8 eval cases |
-| 27 | In a live run the agent offered to "request temporary access to a backup system" unprompted (offers are free, but it should only offer what the tools can do for that employee). | M5 live test | M8 (eval case) |
-| 28 | Retrieval gold set: 26 questions written by the same author as the corpus, so it flatters. Needs more, harder, independently written questions, tracked per release. | M6 | M8 |
+| 27 | In a live run the agent offered to "request temporary access to a backup system" unprompted (offers are free, but it should only offer what the tools can do for that employee). Not seen again in the eval runs, but no case asks for it. | M5 live test | next eval pass |
 | 29 | No reranker. Not needed at 18 articles; revisit when a tenant's KB grows. | M6 | M8 / later |
-| 30 | Query embeddings are made inside the agent step's transaction (ADR 0005). Their cost is now counted in the run and the caps (M8a); it is an estimate (4 characters per token), and the embedding still happens inside the step. | M6 | M8b (pre-embed outside the step) |
+| 30 | Query embeddings are made inside the agent step's transaction (ADR 0005). Their cost is counted in the run and the caps (M8a); it is an estimate (4 characters per token), and the embedding still happens inside the step. The eval runs show a model call is 2-3 s and the embedding is a small part of a step, so this stays. | M6 | accept, revisit if steps get slower |
 | 31 | Full-text side is `english` only; a Spanish KB loses the keyword benefit. | M6 | M8 / when multi-language |
-| 32 | The agent says things like "I opened a ticket with HR" although tickets have no team routing. Overclaim by omission. | M6 live test | M8 eval case |
-| 33 | Prompt-injection through KB content survived one live attempt (single sample, one model). | M6 live test | M8 adversarial eval set |
+| 32 | The agent says things like "I opened a ticket with HR" although tickets have no team routing. Overclaim by omission. The eval cases cover promised emails, ETAs and ticket edits, not claims about routing. | M6 live test | next eval pass |
 | 37 | The UI polls (about 1 request/s while a turn runs) instead of streaming; SSE would cut requests and show model tokens as they arrive. | M7 | later |
 | 38 | Only the interface is translated (EN/ES); agent replies follow the model, article texts stay as written, and the full-text search is English-only (item 31). | M7 | M8 / later |
-| 39 | In a live run the agent printed the raw approval id (a UUID) to the employee. M8a added a prompt rule; it has not been checked against the live model yet. | M7 live test | M8b (eval case) |
 | 40 | The UI has been looked at in Chrome only (desktop width and a 390 px frame), not on a real phone or in Safari/Firefox. No automated visual or accessibility test beyond Testing Library. | M7 | M8 / M9 |
 | 41 | Sessions cannot be revoked, only expire (12 h); rotating `DEMO_TOKEN_SECRET` kills all of them. | M8a | accept |
-| 42 | When the daily budget is spent the demo is read-only until midnight UTC. A replay mode with recorded runs (roadmap) would keep it showable. | M8a | M8b / M9 |
+| 42 | When the daily budget is spent the demo is read-only until midnight UTC. A replay mode with recorded runs (roadmap) would keep it showable. The eval transcripts are a ready source of recorded runs. | M8a | M9 |
 | 43 | The per-IP daily cap is shared by everyone behind one NAT (a company network). Raise or disable `IP_DAILY_BUDGET_USD` if visitors report it. | M8a | watch after M9 |
 | 44 | Spend is checked before a run and recorded after it, so a run can overshoot a cap by its own cost (cents at most). | M8a | accept |
-| 45 | Bring-your-own-key (roadmap) is not built: sessions always spend the demo's key. | M8a | M8b / later |
+| 45 | Bring-your-own-key (roadmap) is not built: sessions always spend the demo's key. | M8a | later |
+| 46 | The agent offers to "update the ticket" or "add details" although no tool edits a ticket (seen in the final low-effort run, 1 of 3, and in nano, 2 of 3). Either add a small `add_ticket_note` tool, which the models plainly want, or tighten the prompt. | M8b | M9 or later |
+| 47 | The eval suite is 28 cases with 3 repeats, tuned after seeing failures (disclosed in docs/evals.md). Good as a regression bar, too small to rank models that differ by a case. Real conversations from the demo should become new cases. | M8b | ongoing |
+| 48 | `OPENAI_REASONING_EFFORT` is sent to whatever model is configured; models that do not reason reject it. Set it empty for them (documented in `.env.example`). | M8b | accept |
 | 35 | Changing the embedding model leaves old chunks unsearchable until `seed_kb` re-embeds; vector width (1536) is fixed by the schema. | M6 | documented; M8 re-embed command |
 | 19 | No automated live-model check in CI (costs money, non-deterministic). | M3 | M8 (manual/weekly eval job with its own key) |
 
@@ -98,3 +94,11 @@ listed (struck through) so the history of what the project learned is not lost.
 - ~~`Idempotency-Key` rows never expire.~~ (M8a: the sweeper drops idempotency keys older than 24 h)
 - ~~Expired approvals stay `pending` until someone tries to decide them and the employee is never told.~~ (M8a: the sweeper expires unsigned approvals and tells the employee in the conversation)
 - ~~`/api/kb/search` and article writes are unthrottled; each call spends embedding money.~~ (M8a: per-session rate limits and spend caps on search and article writes)
+
+- ~~The ledger only stops repeats of the same `tool_call_id`. A model that asks twice with two different ids still opens two tickets.~~ (M8b: measured, no duplicate ticket in 32 of 32 runs of `no_duplicate_ticket` across the final arms; the ledger gap itself remains by design)
+- ~~The model marks "degraded" systems `urgent` although the tool says urgent is for fully blocked work.~~ (M8b: `never urgent` and `low for cosmetic` are eval cases; mini at default effort rates a cracked monitor medium, at low effort high (judgement call, docs/evals.md))
+- ~~Price table in `app/llm/pricing.py` comes from third-party trackers, has no entry for DeepSeek/Kimi/other providers.~~ (M8b: OpenAI's prices checked against its pricing page on 2026-10-31; other providers still have no entry and must be added if one is chosen)
+- ~~Approval behaviour is only spot-checked with the live model (7 turns, all as intended after the fixes below). Needs eval cases: claims success while pending? re-asks? skips approval under pressure?~~ (M8b: approval cases pass 9/9 for the chosen model and the audit log proves nothing ran before approval; re-asking and pressure to skip approval are not covered)
+- ~~Retrieval gold set: 26 questions written by the same author as the corpus, so it flatters. Needs more, harder, independently written questions, tracked per release.~~ (M8b: 63 questions with paraphrases, typos, Spanish, undocumented and other-company topics; hit@3 100% at 0.30; still written by the same author as the corpus, so keep adding questions from real use)
+- ~~Prompt-injection through KB content survived one live attempt (single sample, one model).~~ (M8b: the four injection cases (pasted order, order planted in an article, reciting the prompt, a pasted password) pass 12/12 in every mini arm)
+- ~~In a live run the agent printed the raw approval id (a UUID) to the employee. M8a added a prompt rule; it has not been checked against the live model yet.~~ (M8b: escalation and article ids removed from what the model sees; no mini run leaked an id)

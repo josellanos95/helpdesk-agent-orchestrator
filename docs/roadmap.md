@@ -11,13 +11,13 @@
 | M6 | Per-tenant knowledge base: hybrid search (pgvector + full text), cited answers | done |
 | M7 | Responsive web UI: live audit listing, run inspector, approvals queue, knowledge base ([ADR 0006](adr/0006-web-ui-the-audit-listing.md)) | done |
 | M8a | Demo protection: signed sessions, server-enforced roles, rate limits, spend caps, housekeeping ([ADR 0007](adr/0007-demo-sessions-limits-and-budget.md)) | done |
-| M8b | Evals (behaviour, guardrails, retrieval), model comparison for latency and cost | planned |
+| M8b | Evals (behaviour, guardrails, retrieval), model comparison for latency and cost ([ADR 0008](adr/0008-agent-evals.md), [results](evals.md)) | done |
 | M9 | Public deployment, README, ADRs, demo video | planned |
 
 ## Decisions
 
-- **LLM provider:** OpenAI. The model is chosen by the eval results (candidates: `gpt-5-mini`, `gpt-5-nano`),
-  behind a thin client interface so it can be swapped.
+- **LLM provider:** OpenAI, `gpt-5-mini` with reasoning effort `low`, chosen by the evals over `gpt-5-nano` and
+  over the same model at default effort ([results](evals.md)), behind a thin client interface so it can be swapped.
 - **Public demo cost control (M8):** separate API key with a hard monthly limit, a global daily cap in the app,
   per-session and per-IP limits, and a replay mode with recorded runs once the cap is reached. Evals use their
   own key and budget.

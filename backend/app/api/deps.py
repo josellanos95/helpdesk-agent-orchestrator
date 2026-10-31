@@ -119,6 +119,7 @@ def get_llm() -> LLMClient:
         api_key=settings.openai_api_key,
         model=settings.openai_model,
         base_url=settings.openai_base_url,
+        reasoning_effort=settings.openai_reasoning_effort,
     )
 
 
