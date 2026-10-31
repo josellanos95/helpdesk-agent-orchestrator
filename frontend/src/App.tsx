@@ -14,7 +14,7 @@ function App() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-white text-slate-900">
-      <h1 className="text-3xl font-semibold">Helpdesk Agent Orchestrator</h1>
+      <h1 className="text-3xl font-semibold">Triagent</h1>
       <p className="text-slate-500">Multi-tenant AI agent for IT helpdesk support — work in progress.</p>
       <div className="flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm">
         <span

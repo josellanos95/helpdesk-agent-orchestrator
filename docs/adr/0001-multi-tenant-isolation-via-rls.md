@@ -57,8 +57,8 @@ whatever admin connection Railway/CI hands us: if the app connected using the
 same superuser role migrations use, `FORCE ROW LEVEL SECURITY` would be
 decorative.
 
-This was verified manually, not assumed — see "What broke" below and
-`backend/tests/integration/test_tenant_isolation.py` (M2) for the automated
+This was verified manually, not assumed — see "Bugs this surfaced" below and
+`backend/tests/integration/test_tenant_isolation.py` for the automated
 version, including an adversarial case: a session scoped to tenant A that
 explicitly queries `WHERE tenant_id = <tenant B's id>` still gets zero rows,
 because the database enforces the policy independently of what the
@@ -67,11 +67,21 @@ application's `WHERE` clause says.
 ## What "forgot to scope the tenant" actually does
 
 `current_setting('app.tenant_id', true)` suppresses Postgres's "unrecognized
-configuration parameter" error when the GUC was never set — but an unset GUC
-still reads back as `''` (empty string), not `NULL`. Casting `''::uuid` fails
-with `invalid_text_representation`. Net effect: a code path that forgets to
-open a `tenant_scoped_session` doesn't leak rows, and doesn't silently return
-zero rows either — it fails the query outright. Fail loud beats fail open.
+configuration parameter" error when the GUC was never set. What it returns
+then depends on the connection's history:
+
+- **Connection that never had `app.tenant_id` set:** `NULL`. The policy
+  becomes `tenant_id = NULL`, which matches nothing — zero rows, no error.
+- **Connection where an earlier transaction already used `set_config`:** the
+  GUC reads back as `''` (empty string). Casting `''::uuid` fails with
+  `invalid_text_representation`, so the query errors out.
+
+Either way a code path that forgets to open a `tenant_scoped_session` can
+never read or write another tenant's rows. It fails *closed*, but not
+consistently *loud*: this section originally claimed the second behaviour for
+every connection, which the M2 tests showed to be wrong (a fresh connection
+returns an empty result instead). Fail closed is the guarantee; don't rely on
+an exception to notice a missing scope.
 
 ## Bugs this surfaced while building it (kept here because they're the actual lesson)
 
