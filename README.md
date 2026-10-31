@@ -18,7 +18,9 @@ Multi-tenant AI agent for IT helpdesk support — tool use / function calling, R
 | M5 | Human approval of sensitive actions, escalation queue, audit log ([ADR 0004](docs/adr/0004-human-approvals-and-escalation.md)) | done |
 | M6 | Per-tenant knowledge base: hybrid search (pgvector + full text), cited answers ([ADR 0005](docs/adr/0005-knowledge-base-and-hybrid-search.md)) | done |
 | M7 | Responsive web UI: the agent's work printed live as an audit listing ([ADR 0006](docs/adr/0006-web-ui-the-audit-listing.md)) | done |
-| M8+ | Evals, guardrails, demo auth, deploy | planned |
+| M8a | Demo protection: signed sessions, server-enforced roles, rate limits and spend caps ([ADR 0007](docs/adr/0007-demo-sessions-limits-and-budget.md)) | done |
+| M8b | Behaviour evals, model and reasoning-effort comparison, bigger retrieval set ([ADR 0008](docs/adr/0008-agent-evals.md), [results](docs/evals.md)) | done |
+| M9 | Deploy | planned |
 
 ## Local development
 
@@ -39,7 +41,7 @@ npm run dev
 
 ## API (M3)
 
-All routes take the tenant in an `X-Tenant-Id` header (temporary; real auth comes in M8).
+In `AUTH_MODE=header` (local development, the default) routes take the tenant in an `X-Tenant-Id` header and nobody is authenticated. In `AUTH_MODE=signed` (required in production) every route needs `Authorization: Bearer <token>` from `POST /api/demo/session`, and the token decides tenant, person and role (see [Demo protection](#demo-protection)).
 
 | Route | |
 |---|---|
@@ -84,9 +86,11 @@ python -m scripts.seed_kb --offline     # free, lexical-only stand-in, for worki
 python -m scripts.eval_retrieval --verbose
 ```
 
-Measured with `text-embedding-3-small` on 26 questions (20 answerable, 6 not, one asking a company about
-another's content): **hit@1 100%, hit@3 100%, 0 of 6 unanswerable questions returned noise** at the default
-`KB_MIN_SIMILARITY=0.30`. Small set, same author as the corpus: a calibration, not a guarantee (ADR 0005).
+Measured with `text-embedding-3-small` on 63 questions (45 answerable, 18 not: paraphrases, typos, Spanish,
+undocumented topics and another company's topics): **hit@1 100%, hit@3 100%, no answer missed** at the default
+`KB_MIN_SIMILARITY=0.30`, at the price of 5 of the 18 unanswerable questions returning an irrelevant passage
+that the agent has to recognise (it did, in every eval run). Per-kind numbers and the threshold trade-off are in
+[docs/evals.md](docs/evals.md). Same author as the corpus: a calibration, not a guarantee (ADR 0005).
 
 | Route | |
 |---|---|
@@ -102,7 +106,7 @@ cd frontend && npm install && npm run dev                                    # h
 npm test                                                                     # Vitest: line mapping, API client, i18n, send flow, components
 ```
 
-Pick a fictitious company and a person (identity is **chosen, not authenticated**; real demo auth is M8).
+Pick a fictitious company and a person. The server mints a signed session for that choice and enforces it; the identity is still **chosen, not authenticated** (anyone can be anyone in the demo, with fictitious data).
 
 - **Employee:** Chat, Requests, Knowledge. Ask the agent something and watch each step print as a line with its
   real time, duration, tokens and cost; click a line to inspect its input and output. A request that needs a
@@ -113,6 +117,41 @@ Pick a fictitious company and a person (identity is **chosen, not authenticated*
   Spanish for the interface, light and dark themes.
 
 Extra read routes the UI uses: `GET /api/conversations`, `GET /api/conversations/{id}/runs`, `GET /api/tickets`.
+
+## Evals
+
+The agent is tested against the real model, not only a scripted one. `backend/evals/` holds 29 conversations with
+deterministic checks over tool calls and database rows (one ticket not three, a password reset still `pending`, no
+internal id in the reply, an order planted in an article ignored), played by throwaway employees in throwaway copies
+of the demo companies and deleted afterwards.
+
+```bash
+cd backend
+python -m scripts.run_evals --repeat 3 --max-usd 0.30        # about 15 cents with the default model
+python -m scripts.run_evals --regrade evals/results/*.json   # re-grade saved runs, free
+```
+
+Result for the shipped configuration, `gpt-5-mini` with `OPENAI_REASONING_EFFORT=low`: **83 of 84 runs pass, median
+4.9 s and $0.0015 per turn**; the same model at its default effort is twice as slow and twice as expensive for the
+same pass rate, and `gpt-5-nano` fails guardrails the larger model holds. The comparison, what the evals caught, what
+they could not show and what they cost (about $1.9) are in [docs/evals.md](docs/evals.md).
+
+## Demo protection
+
+Because the agent calls a paid model, the public demo is bounded (ADR 0007):
+
+| Setting | Default | |
+|---|---|---|
+| `AUTH_MODE` | `header` | `signed` makes every route need a session token. `ENVIRONMENT=production` refuses to start unless it is `signed`, `DEMO_TOKEN_SECRET` has 32+ characters and `APP_DB_PASSWORD` is not the published default. |
+| `SESSION_BUDGET_USD` / `IP_DAILY_BUDGET_USD` / `DAILY_BUDGET_USD` | 0.10 / 0.25 / 1.00 | Spend caps (chat, tools and embeddings). `0` switches one off. A reached cap answers `429` with a code the UI shows. |
+| `TRUST_FORWARDED_FOR` | `false` | Only behind a trusted reverse proxy. |
+
+Also: per-session and per-IP rate limits (messages, knowledge search and writes, session creation), `GET
+/api/demo/budget` for the remaining budget, and a background sweeper that closes stuck runs, expires unsigned
+approvals (telling the employee) and drops old idempotency keys.
+
+Before the public deploy the repository, its dependencies and the visitor-reachable code were reviewed:
+[docs/security-review.md](docs/security-review.md) lists what was fixed and what is still open.
 
 ## Tests
 

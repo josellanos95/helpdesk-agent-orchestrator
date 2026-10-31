@@ -228,6 +228,7 @@ async def _loop(
                 employee_id=employee_id,
                 conversation_id=conversation_id,
                 embedder=embedder,
+                charge=lambda usd: setattr(totals, "cost", totals.cost + usd),
             )
             for call in response.tool_calls:
                 started = time.perf_counter()

@@ -19,8 +19,10 @@ class OpenAIClient:
         http_client: httpx.AsyncClient | None = None,
         timeout: float = REQUEST_TIMEOUT_SECONDS,
         max_retries: int = MAX_RETRIES,
+        reasoning_effort: str | None = None,
     ) -> None:
         self.model = model
+        self._reasoning_effort = reasoning_effort
         self._client = AsyncOpenAI(
             api_key=api_key,
             base_url=base_url,
@@ -34,6 +36,7 @@ class OpenAIClient:
             model=self.model,
             messages=messages,
             tools=tools or NOT_GIVEN,
+            reasoning_effort=self._reasoning_effort or NOT_GIVEN,
         )
         message = completion.choices[0].message
         usage = completion.usage

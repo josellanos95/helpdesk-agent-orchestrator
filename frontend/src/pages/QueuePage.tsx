@@ -173,7 +173,7 @@ function EscalationItem({ escalation }: { escalation: Escalation }) {
           <span className="item-meta num">{ago(escalation.created_at, locale)}</span>
         </div>
         <p className="item-sub">
-          {t('queue.urgency', { level: escalation.urgency })} · {escalation.reason}
+          {t('queue.urgency', { level: t(`level.${escalation.urgency}` as StringKey) })} · {escalation.reason}
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           {escalation.status === 'pending' && (

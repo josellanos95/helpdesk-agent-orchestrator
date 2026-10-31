@@ -80,6 +80,28 @@ async def main(offline: bool, verbose: bool) -> None:
         row = f"{threshold:>8.2f} {h1 / n:>7.0%} {h3 / n:>7.0%} {misses:>7}"
         print(f"{row} {false_accepts:>11}/{len(unanswerable)}")
 
+    chosen = get_settings().kb_min_similarity
+    print(f"\nBy kind of question, at the configured KB_MIN_SIMILARITY={chosen}:")
+    print(f"{'kind':>14} {'n':>3} {'hit@1':>7} {'hit@3':>7} {'misses':>7} {'false accepts':>14}")
+    for kind in dict.fromkeys(item.get("kind", "core") for item, _ in rows):
+        group = [(i, h) for i, h in rows if i.get("kind", "core") == kind]
+
+        def kept(hits):
+            return [
+                h for h in hits if h.keyword_match or (h.similarity is not None and h.similarity >= chosen)
+            ]
+
+        have = [(i, kept(h)) for i, h in group if i["expected"]]
+        none = [(i, kept(h)) for i, h in group if not i["expected"]]
+        if have:
+            h1 = sum(bool(k and k[0].title == i["expected"]) for i, k in have)
+            h3 = sum(i["expected"] in [x.title for x in k[:3]] for i, k in have)
+            cells = f"{h1 / len(have):>7.0%} {h3 / len(have):>7.0%} {sum(not k for _, k in have):>7}"
+        else:
+            cells = f"{'-':>7} {'-':>7} {'-':>7}"
+        false = f"{sum(bool(k) for _, k in none):>11}/{len(none)}" if none else f"{'-':>14}"
+        print(f"{kind:>14} {len(group):>3} {cells} {false}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

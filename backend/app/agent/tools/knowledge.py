@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field
 
 from app.agent.tools.base import Tool, ToolContext
 from app.config import get_settings
+from app.llm.pricing import embedding_cost_usd
 from app.services import knowledge_base as kb
 
 PASSAGE_CHARS = 900
@@ -23,6 +24,7 @@ async def search_knowledge_base(ctx: ToolContext, args: SearchKnowledgeBaseArgs)
     # Embedding is a network call made while this step's transaction is open (a tool runs inside it).
     # Short, but it is the one place that bends the "no transaction across slow calls" rule (ADR 0005).
     [vector] = await ctx.embedder.embed([args.query])
+    ctx.charge(embedding_cost_usd(ctx.embedder.model, args.query))
     hits = await kb.search_by_vector(
         ctx.session,
         vector,
@@ -44,7 +46,6 @@ async def search_knowledge_base(ctx: ToolContext, args: SearchKnowledgeBaseArgs)
         "results": [
             {
                 "article": hit.title,
-                "article_id": str(hit.article_id),
                 "passage": hit.content[:PASSAGE_CHARS],
                 "matched_by": (
                     "meaning and words"

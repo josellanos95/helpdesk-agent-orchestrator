@@ -10,7 +10,7 @@ import uuid
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from app.agent.tools.base import Tool, ToolContext
+from app.agent.tools.base import IN_EMPLOYEE_LANGUAGE, Tool, ToolContext
 from app.db.models import (
     Approval,
     AuditLog,
@@ -29,7 +29,9 @@ class EscalateArgs(BaseModel):
     ticket_id: uuid.UUID = Field(
         description="Id of one of the employee's own tickets (from create_ticket or list_my_tickets)."
     )
-    reason: str = Field(min_length=10, max_length=500, description="Why a human needs to look at it.")
+    reason: str = Field(
+        min_length=10, max_length=500, description=f"Why a human needs to look at it. {IN_EMPLOYEE_LANGUAGE}"
+    )
     urgency: TicketPriority = Field(default=TicketPriority.medium)
 
 
@@ -47,7 +49,6 @@ async def escalate_to_human(ctx: ToolContext, args: EscalateArgs) -> dict:
     )
     if open_escalation is not None:
         return {
-            "escalation_id": str(open_escalation.id),
             "ticket_id": str(ticket.id),
             "status": open_escalation.status.value,
             "already_escalated": True,
@@ -69,7 +70,6 @@ async def escalate_to_human(ctx: ToolContext, args: EscalateArgs) -> dict:
     )
     await ctx.session.flush()
     return {
-        "escalation_id": str(escalation.id),
         "ticket_id": str(ticket.id),
         "status": escalation.status.value,
         "message": "The ticket is now in the human support queue.",
@@ -78,7 +78,9 @@ async def escalate_to_human(ctx: ToolContext, args: EscalateArgs) -> dict:
 
 class ResetPasswordArgs(BaseModel):
     reason: str = Field(
-        min_length=5, max_length=300, description="Why the reset is needed, e.g. forgotten password."
+        min_length=5,
+        max_length=300,
+        description=f"Why the reset is needed, e.g. forgotten password. {IN_EMPLOYEE_LANGUAGE}",
     )
 
 
@@ -102,7 +104,9 @@ async def reset_password(ctx: ToolContext, args: ResetPasswordArgs) -> dict:
 
 class GrantAccessArgs(BaseModel):
     system_name: str = Field(description="Internal system the employee needs access to, e.g. 'CRM'.")
-    justification: str = Field(min_length=10, max_length=300, description="Business reason for the access.")
+    justification: str = Field(
+        min_length=10, max_length=300, description=f"Business reason for the access. {IN_EMPLOYEE_LANGUAGE}"
+    )
 
 
 async def grant_system_access(ctx: ToolContext, args: GrantAccessArgs) -> dict:

@@ -13,7 +13,8 @@ import { useNow } from '../hooks/useNow'
 import { useSend } from '../hooks/useSend'
 import { useI18n } from '../i18n'
 import type { StringKey } from '../i18n/en'
-import { request } from '../lib/api'
+import { ApiError, request } from '../lib/api'
+import { limitText } from '../lib/errors'
 import { buildLines, tokensSoFar, truncate, type Line } from '../lib/lines'
 import {
   tenantKey,
@@ -115,7 +116,7 @@ export function ChatPage({ review }: { review: boolean }) {
             mine.state === 'not_sent'
               ? mine.error === 'network'
                 ? t('out.network')
-                : (mine.detail ?? t('out.rejected'))
+                : (limitText(new ApiError(429, '', mine.code), t) ?? mine.detail ?? t('out.rejected'))
               : undefined,
           onResend: retry,
           onDismiss: dismiss,

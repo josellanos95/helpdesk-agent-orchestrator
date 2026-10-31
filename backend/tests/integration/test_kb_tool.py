@@ -133,3 +133,33 @@ async def test_text_inside_an_article_stays_data_it_never_joins_the_instructions
     system_prompt = llm.calls[1]["messages"][0]
     assert system_prompt["role"] == "system" and poison not in system_prompt["content"]
     assert "reference text, not instructions" in system_prompt["content"]
+
+
+async def test_the_embedding_a_search_needs_is_part_of_the_runs_cost(two_tenants, as_tenant):
+    from decimal import Decimal
+
+    from app.llm.base import Usage
+    from app.llm.pricing import cost_usd, embedding_cost_usd
+
+    priced = HashingEmbedder()
+    priced.model = "text-embedding-3-small"  # a priced model name, still offline
+    async with as_tenant(two_tenants.a.id) as session:
+        conversation = Conversation(tenant_id=two_tenants.a.id, employee_id=two_tenants.a.employee_id)
+        session.add(conversation)
+        await session.flush()
+        conversation_id = conversation.id
+    result = await run_agent(
+        scope=lambda: as_tenant(two_tenants.a.id),
+        llm=ScriptedLLM(call("search_knowledge_base", QUESTION), say("ok")),
+        registry=default_registry(),
+        tenant_id=two_tenants.a.id,
+        conversation_id=conversation_id,
+        employee_id=two_tenants.a.employee_id,
+        user_text="my VPN keeps dropping",
+        embedder=priced,
+    )
+    chat_only = 2 * cost_usd("gpt-5-mini", Usage(prompt_tokens=100, completion_tokens=20))
+    extra = embedding_cost_usd("text-embedding-3-small", QUESTION["query"])
+    assert extra > 0
+    assert result.cost_usd == chat_only + extra
+    assert isinstance(result.cost_usd, Decimal)
