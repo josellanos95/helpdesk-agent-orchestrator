@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.config import Settings
+from app.config import DEV_APP_DB_PASSWORD, Settings
 
 
 def make(**kwargs) -> Settings:
@@ -32,7 +32,12 @@ def test_production_refuses_a_short_secret():
 
 def test_production_refuses_the_published_database_password():
     with pytest.raises(ValidationError, match="APP_DB_PASSWORD"):
-        make(environment="production", auth_mode="signed", demo_token_secret="x" * 40)
+        make(
+            environment="production",
+            auth_mode="signed",
+            demo_token_secret="x" * 40,
+            app_db_password=DEV_APP_DB_PASSWORD,  # explicit: CI sets its own in the environment
+        )
 
 
 def test_production_with_signed_auth_and_a_long_secret_is_fine():
