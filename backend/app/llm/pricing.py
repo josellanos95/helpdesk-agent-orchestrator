@@ -30,3 +30,19 @@ def cost_usd(model: str, usage: Usage) -> Decimal:
         return Decimal(0)
     per_in, per_out = price
     return (per_in * usage.prompt_tokens + per_out * usage.completion_tokens) / Decimal(1_000_000)
+
+
+# USD per 1M input tokens for embedding models (same caveat as above: third-party trackers).
+EMBEDDING_PRICES_PER_MILLION: dict[str, Decimal] = {
+    "text-embedding-3-small": Decimal("0.02"),
+    "text-embedding-3-large": Decimal("0.13"),
+}
+CHARS_PER_TOKEN = 4  # rough rule of thumb for English; embeddings are cheap enough that this is fine
+
+
+def embedding_cost_usd(model: str, text: str) -> Decimal:
+    """Estimated cost of embedding `text`. Unknown models (hashing, other providers) cost 0."""
+    price = EMBEDDING_PRICES_PER_MILLION.get(model)
+    if price is None:
+        return Decimal(0)
+    return price * Decimal(max(1, len(text) // CHARS_PER_TOKEN)) / Decimal(1_000_000)

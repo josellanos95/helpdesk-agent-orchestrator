@@ -1,13 +1,30 @@
 export class ApiError extends Error {
   status: number
   detail: string
+  /** Machine-readable reason for limits (rate_limited, budget_exhausted_session, ...). */
+  code?: string
+  retryAfter?: number
 
-  constructor(status: number, detail: string) {
+  constructor(status: number, detail: string, code?: string, retryAfter?: number) {
     super(detail)
     this.name = 'ApiError'
     this.status = status
     this.detail = detail
+    this.code = code
+    this.retryAfter = retryAfter
   }
+}
+
+// The signed demo session token, set by the session provider. A 401 means it is gone or expired.
+let authToken: string | null = null
+let onUnauthorized: (() => void) | null = null
+
+export function setAuthToken(token: string | null) {
+  authToken = token
+}
+
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  onUnauthorized = handler
 }
 
 type Options = {
@@ -21,6 +38,7 @@ type Options = {
 function detailOf(payload: unknown, fallback: string): string {
   const detail = (payload as { detail?: unknown } | null)?.detail
   if (typeof detail === 'string') return detail
+  if (detail && typeof detail === 'object' && 'message' in detail) return String((detail as { message: unknown }).message)
   if (Array.isArray(detail)) {
     // FastAPI validation errors: [{loc, msg, ...}]
     const messages = detail.map((d) => (d as { msg?: string }).msg ?? '').filter(Boolean)
@@ -32,6 +50,7 @@ function detailOf(payload: unknown, fallback: string): string {
 export async function request<T>(path: string, options: Options = {}): Promise<T> {
   const headers: Record<string, string> = { ...options.headers }
   if (options.tenantId) headers['X-Tenant-Id'] = options.tenantId
+  if (authToken) headers.Authorization = `Bearer ${authToken}`
   if (options.body !== undefined) headers['Content-Type'] = 'application/json'
 
   const response = await fetch(`/api${path}`, {
@@ -50,7 +69,15 @@ export async function request<T>(path: string, options: Options = {}): Promise<T
     // not JSON (a proxy error page, for example)
   }
   if (!response.ok) {
-    throw new ApiError(response.status, detailOf(payload, response.statusText || 'Request failed'))
+    const code = (payload as { detail?: { code?: unknown } } | null)?.detail?.code
+    const retryAfter = Number(response.headers.get('Retry-After'))
+    if (response.status === 401 && authToken) onUnauthorized?.()
+    throw new ApiError(
+      response.status,
+      detailOf(payload, response.statusText || 'Request failed'),
+      typeof code === 'string' ? code : undefined,
+      Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined,
+    )
   }
   return payload as T
 }

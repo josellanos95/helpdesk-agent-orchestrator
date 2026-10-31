@@ -14,8 +14,10 @@ export type Outbox = {
   baseSeq: number
   state: 'sending' | 'waiting' | 'not_sent'
   attempt: number
-  error?: 'network' | 'rejected'
+  error?: 'network' | 'rejected' | 'limited'
   detail?: string
+  /** The server's reason for a limit (rate_limited, budget_exhausted_session, ...). */
+  code?: string
 }
 
 const MAX_BUSY_ATTEMPTS = 8
@@ -76,8 +78,14 @@ export function useSend(tenantId: string) {
           setOutbox({
             ...box,
             state: 'not_sent',
-            error: isTransient(error) || isBusy(error) ? 'network' : 'rejected',
+            error:
+              error instanceof ApiError && error.status === 429
+                ? 'limited'
+                : isTransient(error) || isBusy(error)
+                  ? 'network'
+                  : 'rejected',
             detail: error instanceof ApiError ? error.detail : undefined,
+            code: error instanceof ApiError ? error.code : undefined,
           })
           await queryClient.invalidateQueries({ queryKey: tenantKey(tenantId) })
           return

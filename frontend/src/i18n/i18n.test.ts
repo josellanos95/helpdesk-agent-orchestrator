@@ -24,6 +24,15 @@ describe('translations', () => {
     expect(translate('en', 'common.people')).toBe('{n} people')
   })
 
+  it('has a sentence for every limit code the server can send', async () => {
+    const { limitText } = await import('../lib/errors')
+    const { ApiError } = await import('../lib/api')
+    for (const code of ['rate_limited', 'budget_exhausted_session', 'budget_exhausted_ip', 'budget_exhausted_day']) {
+      expect(limitText(new ApiError(429, 'x', code), (key) => en[key]), code).toBeTruthy()
+    }
+    expect(limitText(new ApiError(429, 'x', 'unknown_code'), (key) => en[key])).toBeUndefined()
+  })
+
   it('picks the stored language, else the browser one, else English', () => {
     expect(initialLang('es', 'en-US')).toBe('es')
     expect(initialLang(null, 'es-CO')).toBe('es')

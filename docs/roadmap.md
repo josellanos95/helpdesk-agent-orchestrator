@@ -10,7 +10,8 @@
 | M5 | Human approvals for sensitive actions, escalation queue, audit log | done |
 | M6 | Per-tenant knowledge base: hybrid search (pgvector + full text), cited answers | done |
 | M7 | Responsive web UI: live audit listing, run inspector, approvals queue, knowledge base ([ADR 0006](adr/0006-web-ui-the-audit-listing.md)) | done |
-| M8 | Evals, guardrails, spend caps, demo authentication | planned |
+| M8a | Demo protection: signed sessions, server-enforced roles, rate limits, spend caps, housekeeping ([ADR 0007](adr/0007-demo-sessions-limits-and-budget.md)) | done |
+| M8b | Evals (behaviour, guardrails, retrieval), model comparison for latency and cost | planned |
 | M9 | Public deployment, README, ADRs, demo video | planned |
 
 ## Decisions
