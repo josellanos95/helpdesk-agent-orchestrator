@@ -36,6 +36,9 @@ listed (struck through) so the history of what the project learned is not lost.
 | 47 | The eval suite is 29 cases with 3 repeats, tuned after seeing failures (disclosed in docs/evals.md). Good as a regression bar, too small to rank models that differ by a case. Real conversations from the demo should become new cases. | M8b | ongoing |
 | 48 | `OPENAI_REASONING_EFFORT` is sent to whatever model is configured; models that do not reason reject it. Set it empty for them (documented in `.env.example`). | M8b | accept |
 | 49 | Asked only whether a request was approved, the agent sometimes opens a ticket "because you are blocked" (1 of 3 after the language fix). Two prompt rules conflict ("blocked: open the ticket in the same reply" vs "do not open a ticket just to find out"); the same run promised to report back when approved, which the case does not check. | M8b | next prompt pass |
+| 50 | Hosted, visitors share the demo's state: anyone can pick a support agent and edit or delete knowledge-base articles for everyone, and visitors who pick the same person (or a support agent) read each other's conversations. Per-session copies of a company, or a scheduled reset plus session-only article writes (security review A). | security review | M9, before hosting |
+| 51 | Security headers (CSP, frame-ancestors, nosniff, Referrer-Policy, HSTS) for the Vercel frontend and the API behind Caddy (security review B). | security review | M9 |
+| 52 | `pytest` 8.3.4 has a published advisory; test-only, not in the image. Upgrade with `pytest-asyncio` when convenient. | security review | later |
 | 35 | Changing the embedding model leaves old chunks unsearchable until `seed_kb` re-embeds; vector width (1536) is fixed by the schema. | M6 | documented; M8 re-embed command |
 | 19 | No automated live-model check in CI (costs money, non-deterministic). | M3 | M8 (manual/weekly eval job with its own key) |
 

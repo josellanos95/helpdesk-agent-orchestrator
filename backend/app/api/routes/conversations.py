@@ -419,6 +419,15 @@ async def get_run(
     return _run_out(run, list(steps))
 
 
+def public_error(error: str | None) -> str | None:
+    """Errors are stored as "ExceptionType: message". The message can carry provider or database details
+    (a masked API key, a SQL statement), so in production visitors see only the type; the database keeps
+    the whole text."""
+    if error is None or get_settings().environment != "production":
+        return error
+    return error.split(":", 1)[0]
+
+
 def _run_out(run: AgentRun, steps: list[AgentStep]) -> RunOut:
     return RunOut(
         id=run.id,
@@ -428,8 +437,10 @@ def _run_out(run: AgentRun, steps: list[AgentStep]) -> RunOut:
         prompt_tokens=run.prompt_tokens,
         completion_tokens=run.completion_tokens,
         cost_usd=run.cost_usd,
-        error=run.error,
+        error=public_error(run.error),
         started_at=run.started_at,
         finished_at=run.finished_at,
-        steps=[StepOut.model_validate(s) for s in steps],
+        steps=[
+            StepOut.model_validate(s).model_copy(update={"error": public_error(s.error)}) for s in steps
+        ],
     )

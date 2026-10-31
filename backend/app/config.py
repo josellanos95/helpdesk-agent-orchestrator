@@ -11,6 +11,8 @@ from sqlalchemy.engine import make_url
 # below, and deliberately has neither SUPERUSER nor BYPASSRLS — see
 # docs/adr/0001-multi-tenant-isolation-via-rls.md for why that matters.
 APP_DB_ROLE = "app_runtime"
+# Published in this repo, so production refuses it.
+DEV_APP_DB_PASSWORD = "app_dev_password"
 
 
 class Settings(BaseSettings):
@@ -42,7 +44,7 @@ class Settings(BaseSettings):
     # Password for the app_runtime role. Same value must be used when the
     # migration creates/updates the role (see migrations) and here to build
     # the runtime connection string.
-    app_db_password: str = "app_dev_password"
+    app_db_password: str = DEV_APP_DB_PASSWORD
 
     redis_url: str = "redis://localhost:6379/0"
     openai_api_key: str | None = None
@@ -114,6 +116,8 @@ class Settings(BaseSettings):
                 raise ValueError("AUTH_MODE must be 'signed' when ENVIRONMENT=production")
             if not self.demo_token_secret or len(self.demo_token_secret) < 32:
                 raise ValueError("DEMO_TOKEN_SECRET must be at least 32 characters in production")
+            if self.app_db_password == DEV_APP_DB_PASSWORD:
+                raise ValueError("APP_DB_PASSWORD must be set in production (the default is public)")
         return self
 
     @property

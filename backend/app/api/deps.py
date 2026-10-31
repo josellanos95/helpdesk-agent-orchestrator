@@ -35,7 +35,9 @@ def client_ip(request: Request) -> str:
     if get_settings().trust_forwarded_for:
         forwarded = request.headers.get("x-forwarded-for", "")
         if forwarded.strip():
-            return forwarded.split(",")[0].strip()
+            # The last hop is the one our own proxy added. The first is whatever the caller sent, if a proxy
+            # appends instead of replacing, and would let anyone pick a new "IP" for every request.
+            return forwarded.split(",")[-1].strip()
     return request.client.host if request.client else "unknown"
 
 

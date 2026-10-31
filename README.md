@@ -142,13 +142,16 @@ Because the agent calls a paid model, the public demo is bounded (ADR 0007):
 
 | Setting | Default | |
 |---|---|---|
-| `AUTH_MODE` | `header` | `signed` makes every route need a session token. `ENVIRONMENT=production` refuses to start unless it is `signed` and `DEMO_TOKEN_SECRET` has 32+ characters. |
+| `AUTH_MODE` | `header` | `signed` makes every route need a session token. `ENVIRONMENT=production` refuses to start unless it is `signed`, `DEMO_TOKEN_SECRET` has 32+ characters and `APP_DB_PASSWORD` is not the published default. |
 | `SESSION_BUDGET_USD` / `IP_DAILY_BUDGET_USD` / `DAILY_BUDGET_USD` | 0.10 / 0.25 / 1.00 | Spend caps (chat, tools and embeddings). `0` switches one off. A reached cap answers `429` with a code the UI shows. |
 | `TRUST_FORWARDED_FOR` | `false` | Only behind a trusted reverse proxy. |
 
 Also: per-session and per-IP rate limits (messages, knowledge search and writes, session creation), `GET
 /api/demo/budget` for the remaining budget, and a background sweeper that closes stuck runs, expires unsigned
 approvals (telling the employee) and drops old idempotency keys.
+
+Before the public deploy the repository, its dependencies and the visitor-reachable code were reviewed:
+[docs/security-review.md](docs/security-review.md) lists what was fixed and what is still open.
 
 ## Tests
 

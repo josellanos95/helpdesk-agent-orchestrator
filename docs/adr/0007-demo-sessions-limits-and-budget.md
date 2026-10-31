@@ -44,8 +44,9 @@ recording after it, so one run can overshoot a cap by its own cost. Caps are set
 
 **5. Rate limits are fixed windows**, also in Redis: messages per minute (per session and per IP), knowledge
 search and writes per minute, session creation per hour per IP. `429` carries `Retry-After` and
-`code: rate_limited`. The client IP is the socket address, or the first `X-Forwarded-For` hop only when
-`TRUST_FORWARDED_FOR` is set (behind Caddy), so a caller cannot pick its own IP otherwise.
+`code: rate_limited`. The client IP is the socket address, or the last `X-Forwarded-For` hop (the one our
+proxy added) only when `TRUST_FORWARDED_FOR` is set (behind Caddy), so a caller cannot pick its own IP
+otherwise. (It was the first hop until the pre-deploy security review: spoofable behind any proxy that appends.)
 
 **6. A sweeper does the housekeeping nobody else would**: runs stuck in `running` past 10 minutes are closed as
 failed, unsigned approvals past their expiry are closed and the employee is told in the conversation, old
