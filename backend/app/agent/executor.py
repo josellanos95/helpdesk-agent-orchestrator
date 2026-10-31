@@ -30,6 +30,11 @@ class ToolOutcome:
     replayed: bool = False
 
 
+def invalid_arguments_result(exc: ValidationError) -> dict:
+    details = json.loads(exc.json(include_url=False, include_context=False, include_input=False))
+    return {"error": "Invalid arguments.", "details": details}
+
+
 async def execute_once(ctx: ToolContext, registry: ToolRegistry, call: ToolCall) -> ToolOutcome:
     claimed_id = await ctx.session.scalar(
         pg_insert(ToolExecution)
@@ -67,8 +72,7 @@ async def run_tool(ctx: ToolContext, registry: ToolRegistry, call: ToolCall) -> 
     try:
         args = tool.args_model.model_validate_json(call.arguments or "{}")
     except ValidationError as exc:
-        details = json.loads(exc.json(include_url=False, include_context=False, include_input=False))
-        return {"error": "Invalid arguments.", "details": details}, "invalid arguments"
+        return invalid_arguments_result(exc), "invalid arguments"
     try:
         # SAVEPOINT: if the tool's SQL fails, only its own work is rolled back and the
         # surrounding transaction (messages, trace, the ledger claim) stays usable.

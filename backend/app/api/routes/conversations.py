@@ -27,6 +27,7 @@ class EmployeeOut(BaseModel):
     full_name: str
     email: str
     job_title: str
+    is_support_agent: bool
 
     model_config = {"from_attributes": True}
 
