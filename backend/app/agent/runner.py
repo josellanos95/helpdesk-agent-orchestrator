@@ -18,8 +18,6 @@ import json
 import logging
 import time
 import uuid
-from collections.abc import Awaitable, Callable
-from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -27,8 +25,9 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent.executor import execute_once
+from app.agent.approvals import handle_call
 from app.agent.prompts import build_system_prompt
+from app.agent.runner_types import Heartbeat, SessionScope
 from app.agent.tools import ToolContext, ToolRegistry
 from app.db.models import AgentRun, AgentRunStatus, AgentStep, Employee, Message, MessageRole, Tenant
 from app.llm.base import LLMClient
@@ -45,11 +44,6 @@ MAX_STEPS_REPLY = (
     "I couldn't resolve this in a reasonable number of steps, so I stopped instead of guessing. "
     "Please try rephrasing, or ask for a human."
 )
-
-# Opens one short tenant-scoped transaction: `async with scope() as session: ...`
-SessionScope = Callable[[], AbstractAsyncContextManager[AsyncSession]]
-Heartbeat = Callable[[], Awaitable[None]]
-
 
 @dataclass(frozen=True)
 class AgentResult:
@@ -220,7 +214,7 @@ async def _loop(
             )
             for call in response.tool_calls:
                 started = time.perf_counter()
-                outcome = await execute_once(ctx, registry, call)
+                outcome = await handle_call(ctx, registry, call)
                 _add_step(
                     session, tenant_id, run_id, totals,
                     kind="tool", name=call.name,

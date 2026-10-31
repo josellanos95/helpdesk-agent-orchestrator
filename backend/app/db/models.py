@@ -3,7 +3,19 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import JSON, BigInteger, ForeignKey, Identity, Integer, Numeric, Text, UniqueConstraint, func
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    Boolean,
+    ForeignKey,
+    Identity,
+    Integer,
+    Numeric,
+    Text,
+    UniqueConstraint,
+    false,
+    func,
+)
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -57,6 +69,13 @@ class EscalationStatus(str, enum.Enum):
     resolved = "resolved"
 
 
+class ApprovalStatus(str, enum.Enum):
+    pending = "pending"
+    approved = "approved"
+    rejected = "rejected"
+    expired = "expired"
+
+
 class AgentRunStatus(str, enum.Enum):
     running = "running"
     completed = "completed"
@@ -87,6 +106,10 @@ class Employee(Base):
     full_name: Mapped[str] = mapped_column(Text, nullable=False)
     email: Mapped[str] = mapped_column(Text, nullable=False)
     job_title: Mapped[str] = mapped_column(Text, nullable=False)
+    # Human agents who can decide approvals and work the escalation queue.
+    is_support_agent: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     tenant: Mapped["Tenant"] = relationship(back_populates="employees")
@@ -311,6 +334,64 @@ class IdempotencyKey(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
+class Approval(Base):
+    """A sensitive tool call the agent asked for and a human has to decide.
+
+    While pending nothing has run. On approval the tool executes through the tool ledger using the
+    original tool_call_id, so deciding twice (a double click, two agents, a retry) executes once.
+    """
+
+    __tablename__ = "approvals"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "conversation_id", "tool_call_id", name="uq_approvals_call"),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False
+    )
+    requested_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("employees.id", ondelete="CASCADE"), nullable=False
+    )
+    tool_call_id: Mapped[str] = mapped_column(Text, nullable=False)
+    tool_name: Mapped[str] = mapped_column(Text, nullable=False)
+    arguments: Mapped[str] = mapped_column(Text, nullable=False)  # validated, normalised JSON
+    status: Mapped[ApprovalStatus] = mapped_column(
+        SAEnum(ApprovalStatus, name="approval_status"), nullable=False, default=ApprovalStatus.pending
+    )
+    decided_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("employees.id", ondelete="SET NULL"), nullable=True
+    )
+    decision_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    result: Mapped[dict | None] = mapped_column(JSONB().with_variant(JSON, "sqlite"), nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(nullable=False)
+    decided_at: Mapped[datetime | None] = mapped_column(nullable=True)
+
+
+class AuditLog(Base):
+    """Append-only record of sensitive actions and of who decided them."""
+
+    __tablename__ = "audit_log"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    actor_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("employees.id", ondelete="SET NULL"), nullable=True
+    )
+    actor_type: Mapped[str] = mapped_column(Text, nullable=False)  # "human" | "agent" | "system"
+    action: Mapped[str] = mapped_column(Text, nullable=False)
+    subject: Mapped[str] = mapped_column(Text, nullable=False)
+    details: Mapped[dict] = mapped_column(JSONB().with_variant(JSON, "sqlite"), nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
 TENANT_SCOPED_TABLES = [
     Employee.__tablename__,
     System.__tablename__,
@@ -323,4 +404,6 @@ TENANT_SCOPED_TABLES = [
     AgentStep.__tablename__,
     ToolExecution.__tablename__,
     IdempotencyKey.__tablename__,
+    Approval.__tablename__,
+    AuditLog.__tablename__,
 ]

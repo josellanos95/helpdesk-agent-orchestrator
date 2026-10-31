@@ -2,6 +2,7 @@ import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -14,6 +15,9 @@ from app.config import get_settings
 from app.db.models import (
     AgentRun,
     AgentStep,
+    Approval,
+    ApprovalStatus,
+    AuditLog,
     Conversation,
     Employee,
     Escalation,
@@ -153,6 +157,19 @@ async def _create_tenant_with_rows(session, label: str) -> TenantData:
     session.add(
         IdempotencyKey(tenant_id=tenant.id, key="fixture-key", request_hash="x", status="completed")
     )
+    session.add(
+        Approval(
+            tenant_id=tenant.id,
+            conversation_id=conversation.id,
+            requested_by=employee.id,
+            tool_call_id="fixture-approval",
+            tool_name="reset_password",
+            arguments="{}",
+            status=ApprovalStatus.pending,
+            expires_at=datetime(2999, 1, 1),
+        )
+    )
+    session.add(AuditLog(tenant_id=tenant.id, actor_type="system", action="fixture", subject="x"))
     await session.flush()
     return TenantData(
         id=tenant.id, ticket_id=ticket.id, employee_id=employee.id, conversation_id=conversation.id
@@ -186,3 +203,23 @@ async def redis_client() -> AsyncIterator[redis.Redis]:
     yield client
     await client.flushdb()
     await client.aclose()
+
+
+@pytest.fixture
+async def support_agents(two_tenants) -> dict[str, uuid.UUID]:
+    """One support agent per tenant (the two_tenants fixture only has ordinary employees)."""
+    ids: dict[str, uuid.UUID] = {}
+    async with AdminSessionLocal() as session:
+        for label, tenant in (("a", two_tenants.a), ("b", two_tenants.b)):
+            agent = Employee(
+                tenant_id=tenant.id,
+                full_name=f"Agent {label}",
+                email=f"agent-{label}@example.test",
+                job_title="Support Agent",
+                is_support_agent=True,
+            )
+            session.add(agent)
+            await session.flush()
+            ids[label] = agent.id
+        await session.commit()
+    return ids
