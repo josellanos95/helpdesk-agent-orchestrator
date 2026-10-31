@@ -2,7 +2,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { parseSession } from './session'
 import { readStored, writeStored } from './storage'
 
-const valid = { tenantId: 't', tenantName: 'Acme', personId: 'p', personName: 'Marco', role: 'employee' }
+const valid = {
+  token: 'a.b',
+  expiresAt: '2999-01-01T00:00:00Z',
+  tenantId: 't',
+  tenantName: 'Acme',
+  personId: 'p',
+  personName: 'Marco',
+  role: 'employee',
+}
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -16,6 +24,11 @@ describe('parseSession', () => {
     expect(parseSession('not json')).toBeNull()
     expect(parseSession(JSON.stringify({ ...valid, role: 'admin' }))).toBeNull()
     expect(parseSession(JSON.stringify({ tenantId: 't' }))).toBeNull()
+    expect(parseSession(JSON.stringify({ ...valid, token: undefined }))).toBeNull() // an old, tokenless session
+  })
+
+  it('does not keep a session whose token has expired', () => {
+    expect(parseSession(JSON.stringify(valid), Date.parse('3000-01-01T00:00:00Z'))).toBeNull()
   })
 })
 

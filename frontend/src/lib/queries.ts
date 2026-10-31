@@ -4,6 +4,8 @@ import type {
   Approval,
   ApprovalStatus,
   Article,
+  Budget,
+  Company,
   ConversationItem,
   Employee,
   Escalation,
@@ -15,6 +17,19 @@ import type {
 
 // Every tenant-scoped key starts with ['t', tenantId] so one invalidation refreshes everything of a tenant.
 export const tenantKey = (tenantId: string) => ['t', tenantId] as const
+
+export function useDirectory() {
+  return useQuery({ queryKey: ['directory'], queryFn: () => request<Company[]>('/demo/directory') })
+}
+
+/** What is left of the demo budget for this session; refreshed whenever tenant data is. */
+export function useBudget(tenantId: string, enabled = true) {
+  return useQuery({
+    queryKey: [...tenantKey(tenantId), 'budget'],
+    queryFn: () => request<Budget>('/demo/budget', { tenantId }),
+    enabled,
+  })
+}
 
 export function useTenants() {
   return useQuery({ queryKey: ['tenants'], queryFn: () => request<Tenant[]>('/tenants') })

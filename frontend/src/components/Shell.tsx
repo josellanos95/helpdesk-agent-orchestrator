@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router'
 import { BookOpen, ClipboardList, Inbox, ListChecks, MessagesSquare, MessageSquare, UserRound } from 'lucide-react'
 import { useI18n } from '../i18n'
+import { money } from '../lib/time'
 import type { StringKey } from '../i18n/en'
-import { useApprovals } from '../lib/queries'
+import { useApprovals, useBudget } from '../lib/queries'
 import { useRequiredSession, useSession } from '../lib/session'
 import { Sheet } from './Sheet'
 import { LangToggle, LanguageSwitch, ThemeSwitch } from './Switches'
@@ -26,6 +27,9 @@ export function PreferencesSheet({ open, onClose }: { open: boolean; onClose: ()
   const session = useRequiredSession()
   const { signOut } = useSession()
   const navigate = useNavigate()
+  const budget = useBudget(session.tenantId, open)
+  const left = budget.data?.session
+  const cap = budget.data?.session_cap
 
   return (
     <Sheet open={open} onClose={onClose} title={t('settings.title')}>
@@ -47,6 +51,21 @@ export function PreferencesSheet({ open, onClose }: { open: boolean; onClose: ()
 
         <LanguageSwitch />
         <ThemeSwitch />
+
+        <div>
+          <p className="label">{t('budget.title')}</p>
+          {budget.data && left != null && cap != null ? (
+            <>
+              <p className="small num">{t('budget.left', { left: money(left), cap: money(cap) })}</p>
+              <span className="bar mt-2" style={{ width: '100%', '--s': Number(left) / Number(cap) } as React.CSSProperties}>
+                <i />
+              </span>
+            </>
+          ) : (
+            budget.isSuccess && <p className="small">{t('budget.off')}</p>
+          )}
+          <p className="muted small mt-2">{t('budget.why')}</p>
+        </div>
 
         <p className="notice">{t('settings.demo')}</p>
       </div>

@@ -1,7 +1,8 @@
+import secrets
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 
@@ -59,6 +60,50 @@ class Settings(BaseSettings):
     # Per-conversation lock; renewed before every model call, so it only has to outlive one step.
     conversation_lock_ttl_seconds: int = 120
     cors_origins: list[str] = ["http://localhost:5173"]
+
+    # --- Public demo protection (M8a, ADR 0007) -------------------------------------------------------
+    # "header": the tenant comes from X-Tenant-Id and nobody is authenticated (local development and the
+    # test suite). "signed": every request needs a Bearer token minted by POST /api/demo/session; tenant
+    # and employee come from the token. A valid token is honoured in both modes.
+    auth_mode: Literal["header", "signed"] = "header"
+    demo_token_secret: str | None = None
+    demo_token_ttl_hours: int = 12
+    # Behind a reverse proxy (Caddy) the client address is the first X-Forwarded-For hop. Only enable this
+    # when such a proxy is really in front, otherwise any caller could choose its own "IP".
+    trust_forwarded_for: bool = False
+
+    # Spend caps in USD (chat, tool and embedding costs). 0 disables a cap.
+    daily_budget_usd: float = 1.00
+    ip_daily_budget_usd: float = 0.25
+    session_budget_usd: float = 0.10
+
+    # Fixed-window rate limits (requests per window). 0 disables a limit.
+    messages_per_minute_session: int = 8
+    messages_per_minute_ip: int = 20
+    searches_per_minute_session: int = 20
+    writes_per_minute_session: int = 10
+    sessions_per_hour_ip: int = 30
+
+    # Background sweep: stuck runs, expired approvals, old idempotency keys.
+    maintenance_enabled: bool = True
+    maintenance_interval_seconds: int = 60
+    # A run still going after this long belonged to a process that died (bounded by lock TTL and timeouts).
+    stuck_run_seconds: int = 600
+    idempotency_ttl_hours: int = 24
+
+    @model_validator(mode="after")
+    def _production_must_authenticate(self) -> "Settings":
+        if self.auth_mode == "signed" and not self.demo_token_secret:
+            raise ValueError("AUTH_MODE=signed needs DEMO_TOKEN_SECRET")
+        if not self.demo_token_secret:
+            # Development: sessions still work, with a secret that lives only as long as this process.
+            self.demo_token_secret = secrets.token_hex(32)
+        if self.environment == "production":
+            if self.auth_mode != "signed":
+                raise ValueError("AUTH_MODE must be 'signed' when ENVIRONMENT=production")
+            if not self.demo_token_secret or len(self.demo_token_secret) < 32:
+                raise ValueError("DEMO_TOKEN_SECRET must be at least 32 characters in production")
+        return self
 
     @property
     def app_database_url(self) -> str:

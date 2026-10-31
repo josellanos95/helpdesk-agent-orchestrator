@@ -13,6 +13,22 @@ export type Employee = {
 
 export type Role = 'employee' | 'support'
 
+export type Person = { id: string; full_name: string; job_title: string; is_support_agent: boolean }
+
+/** One company of the demo with the people you can be and how many articles it has (GET /demo/directory). */
+export type Company = { id: string; name: string; slug: string; articles: number; people: Person[] }
+
+export type DemoSession = {
+  token: string
+  expires_at: string
+  tenant: Company
+  person: Person
+  role: Role
+}
+
+/** Remaining USD per scope; null = that cap is off. */
+export type Budget = { session: string | null; ip: string | null; day: string | null; session_cap: string | null }
+
 export type ConversationItem = {
   id: string
   employee_id: string
