@@ -7,7 +7,7 @@
 | M2 | Isolation tests, migration round-trip test, CI | done |
 | M3 | Agent core: tool-calling loop, persisted messages, per-run traces | done (live OpenAI smoke test pending) |
 | M4 | Short transactions, exactly-once tool calls, per-conversation lock, `Idempotency-Key` | done |
-| M5 | Human approvals for sensitive actions, escalation queue | planned |
+| M5 | Human approvals for sensitive actions, escalation queue, audit log | done |
 | M6 | Per-tenant knowledge base with RAG (pgvector) | planned |
 | M7 | UI: chat, agent console, run inspector | planned |
 | M8 | Evals, guardrails, spend caps, demo authentication | planned |
