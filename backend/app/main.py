@@ -7,7 +7,7 @@ from app.config import get_settings
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    app = FastAPI(title="Helpdesk Agent Orchestrator")
+    app = FastAPI(title="Triagent")
 
     app.add_middleware(
         CORSMiddleware,
