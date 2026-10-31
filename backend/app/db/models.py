@@ -1,8 +1,9 @@
 import enum
 import uuid
 from datetime import datetime
+from decimal import Decimal
 
-from sqlalchemy import JSON, ForeignKey, Text, func
+from sqlalchemy import JSON, BigInteger, ForeignKey, Identity, Integer, Numeric, Text, func
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -54,6 +55,13 @@ class EscalationStatus(str, enum.Enum):
     pending = "pending"
     acknowledged = "acknowledged"
     resolved = "resolved"
+
+
+class AgentRunStatus(str, enum.Enum):
+    running = "running"
+    completed = "completed"
+    failed = "failed"
+    max_steps = "max_steps"
 
 
 class Tenant(Base):
@@ -120,6 +128,9 @@ class Message(Base):
     __tablename__ = "messages"
 
     id: Mapped[uuid.UUID] = _uuid_pk()
+    # Total order of messages. created_at can't do it: now() is the *transaction* start,
+    # so every message written during one request shares the same timestamp.
+    seq: Mapped[int] = mapped_column(BigInteger, Identity(always=True), nullable=False)
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
     )
@@ -130,6 +141,9 @@ class Message(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     tool_name: Mapped[str | None] = mapped_column(Text, nullable=True)
     tool_call_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # On assistant messages that asked for tools: [{"id", "name", "arguments"}], so the
+    # exact history can be replayed to the model on the next turn.
+    tool_calls: Mapped[list | None] = mapped_column(JSONB().with_variant(JSON, "sqlite"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     conversation: Mapped["Conversation"] = relationship(back_populates="messages")
@@ -199,6 +213,60 @@ class Escalation(Base):
     resolved_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
 
+class AgentRun(Base):
+    """One execution of the agent loop for one user message. Its steps are the trace."""
+
+    __tablename__ = "agent_runs"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    status: Mapped[AgentRunStatus] = mapped_column(
+        SAEnum(AgentRunStatus, name="agent_run_status"), nullable=False, default=AgentRunStatus.running
+    )
+    model: Mapped[str] = mapped_column(Text, nullable=False)
+    prompt_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    completion_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal(0))
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    started_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    finished_at: Mapped[datetime | None] = mapped_column(nullable=True)
+
+    steps: Mapped[list["AgentStep"]] = relationship(
+        back_populates="run", order_by="AgentStep.step_index"
+    )
+
+
+class AgentStep(Base):
+    """A single LLM call or tool call inside a run."""
+
+    __tablename__ = "agent_steps"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    step_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    kind: Mapped[str] = mapped_column(Text, nullable=False)  # "llm" | "tool"
+    name: Mapped[str] = mapped_column(Text, nullable=False)  # model id, or tool name
+    input: Mapped[dict | list | None] = mapped_column(JSONB().with_variant(JSON, "sqlite"), nullable=True)
+    output: Mapped[dict | list | None] = mapped_column(JSONB().with_variant(JSON, "sqlite"), nullable=True)
+    latency_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    prompt_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    completion_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+    run: Mapped["AgentRun"] = relationship(back_populates="steps")
+
+
 TENANT_SCOPED_TABLES = [
     Employee.__tablename__,
     System.__tablename__,
@@ -207,4 +275,6 @@ TENANT_SCOPED_TABLES = [
     Ticket.__tablename__,
     TicketEvent.__tablename__,
     Escalation.__tablename__,
+    AgentRun.__tablename__,
+    AgentStep.__tablename__,
 ]

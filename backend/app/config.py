@@ -43,6 +43,8 @@ class Settings(BaseSettings):
 
     redis_url: str = "redis://localhost:6379/0"
     openai_api_key: str | None = None
+    openai_model: str = "gpt-5-mini"
+    agent_max_steps: int = 6
     cors_origins: list[str] = ["http://localhost:5173"]
 
     @property
